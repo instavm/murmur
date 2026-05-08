@@ -1,0 +1,20 @@
+node_modules/
+.venv/
+
+# Local agent / IDE settings
+.claude/
+.cursor/
+.gemini/
+
+# Earlier Python participant from loop-survival testing — not part of v1
+openai_sdk/
+
+# Test harness output: per-run audit logs, sqlite, prompts, logs.
+# Some files (`.harness_token`) are secret.
+runs/
+
+# Runtime state files
+*.pid
+*.port
+.harness_token
+controller/run_http_patched.sh

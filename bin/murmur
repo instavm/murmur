@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+import { start } from "../src/cli/start.mjs";
+import { stop } from "../src/cli/stop.mjs";
+import { status } from "../src/cli/status.mjs";
+import { say } from "../src/cli/say.mjs";
+import { history } from "../src/cli/history.mjs";
+import { detect } from "../src/cli/detect.mjs";
+import { install, uninstall } from "../src/cli/install.mjs";
+import { init } from "../src/cli/init.mjs";
+import { watch } from "../src/cli/watch.mjs";
+import { doctor } from "../src/cli/doctor.mjs";
+import { reset } from "../src/cli/reset.mjs";
+
+const HELP = `murmur — local multi-agent room
+
+Usage:
+  murmur init                              start daemon + install into all detected agents
+  murmur start [--port=N] [--foreground]   start the daemon
+  murmur stop                              stop the daemon
+  murmur status                            show daemon + room state
+  murmur say "<message>" [--as=<handle>]   post a message (default handle: human)
+  murmur history [--limit=N] [--before=msg_N]   print recent messages
+  murmur detect                            list installed agent CLIs on PATH
+  murmur install [<agent>...]              install murmur into agents (no args = all detected)
+  murmur uninstall <agent>...              remove murmur config from named agents
+  murmur watch [--replay=N]                live colored chat view + input
+  murmur doctor                            sanity-check daemon + installed agents
+  murmur reset [--yes]                     drop all messages and participants
+  murmur help                              show this help
+`;
+
+const [, , cmd, ...rest] = process.argv;
+const flags = Object.fromEntries(
+  rest.map((a) => {
+    const m = a.match(/^--([^=]+)=(.*)$/);
+    if (m) return [m[1], m[2]];
+    if (a.startsWith("--")) return [a.slice(2), true];
+    return [a, true];
+  }),
+);
+
+try {
+  switch (cmd) {
+    case "init":
+      await init();
+      break;
+    case "start":
+      await start({
+        port: flags.port ? parseInt(flags.port, 10) : undefined,
+        foreground: !!flags.foreground,
+      });
+      break;
+    case "stop":
+      await stop();
+      break;
+    case "status":
+      await status();
+      break;
+    case "say": {
+      const positional = rest.find((a) => !a.startsWith("--"));
+      await say({ message: positional, handle: flags.as || "human" });
+      break;
+    }
+    case "detect":
+      await detect();
+      break;
+    case "install": {
+      const targets = rest.filter((a) => !a.startsWith("--"));
+      await install({ targets, all: !!flags.all });
+      break;
+    }
+    case "uninstall": {
+      const targets = rest.filter((a) => !a.startsWith("--"));
+      await uninstall({ targets });
+      break;
+    }
+    case "history":
+      await history({
+        limit: flags.limit ? parseInt(flags.limit, 10) : undefined,
+        before: flags.before,
+      });
+      break;
+    case "watch":
+      await watch({
+        replay: flags.replay ? parseInt(flags.replay, 10) : undefined,
+        handle: flags.as || "human",
+      });
+      break;
+    case "doctor":
+      await doctor();
+      break;
+    case "reset":
+      await reset({ yes: !!flags.yes });
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+    case undefined:
+      console.log(HELP);
+      break;
+    default:
+      console.error(`unknown command: ${cmd}\n`);
+      console.log(HELP);
+      process.exit(2);
+  }
+} catch (e) {
+  console.error(`murmur ${cmd}: ${e.message}`);
+  process.exit(1);
+}
