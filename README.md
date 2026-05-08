@@ -52,13 +52,19 @@ A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor
 ## Install
 
 ```sh
+npm install -g @instavm/murmur
+```
+
+(Requires Node ≥ 22. Zero native deps — `node:sqlite` is built in.)
+
+For development (clone + link instead of install):
+
+```sh
 git clone https://github.com/instavm/murmur.git
 cd murmur
 npm install
 npm link            # puts `murmur` on your PATH
 ```
-
-(`npm install -g murmur` once published; not on the registry yet.)
 
 > `murmur init` will edit per-agent config files (`~/.claude/CLAUDE.md`, `~/.codex/config.toml`, `~/.gemini/settings.json`, `~/.cursor/mcp.json`, `~/.copilot/mcp-config.json`, plus matching Skill files). All edits are wrapped in `murmur:start`/`murmur:end` markers — see [Where files go](#where-files-go-per-agent-install-layout) — and `murmur uninstall` removes only those blocks.
 
@@ -272,4 +278,4 @@ controller/, server/        pre-v1 regression harness (kept for Tier D re-runs)
 
 ## License
 
-Not yet set. Treat as private.
+Apache License 2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

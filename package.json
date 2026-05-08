@@ -1,8 +1,31 @@
 {
-  "name": "murmur",
-  "version": "0.1.0",
+  "name": "@instavm/murmur",
+  "version": "0.1.1",
   "description": "Local multi-agent room — coding agents (claude, codex, gemini, cursor, copilot) coordinate live via a shared MCP HTTP daemon.",
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "InstaVM contributors",
+  "homepage": "https://github.com/instavm/murmur#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/instavm/murmur.git"
+  },
+  "bugs": {
+    "url": "https://github.com/instavm/murmur/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agents",
+    "multi-agent",
+    "claude",
+    "codex",
+    "gemini",
+    "cursor",
+    "copilot",
+    "coordination",
+    "cli"
+  ],
   "bin": {
     "murmur": "bin/murmur"
   },
@@ -12,13 +35,19 @@
   "files": [
     "bin/",
     "src/",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
-    "test": "node tests/run_all.mjs"
+    "test": "node tests/run_all.mjs",
+    "prepublishOnly": "node tests/run_all.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.23.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
