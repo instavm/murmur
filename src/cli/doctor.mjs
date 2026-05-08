@@ -9,6 +9,7 @@ import {
 } from "../lib/paths.mjs";
 import { detectAll } from "./detect.mjs";
 import { connect, callTool } from "../lib/mcp_client.mjs";
+import { liveness, fmtAge, STATUS_TAG, FRESH_MAX_S, STALE_MAX_S } from "../lib/liveness.mjs";
 
 function isAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -43,11 +44,13 @@ export async function doctor() {
   if (existsSync(PORT_FILE)) port = readFileSync(PORT_FILE, "utf8").trim();
   allOk &= check("daemon running", !!daemonUp, daemonUp ? `pid ${pid}, port ${port}` : "run `murmur start`");
 
+  let participants = [];
   if (daemonUp) {
     try {
       const conn = await connect("_doctor");
       const who = await callTool(conn.client, "who", {});
-      check("daemon reachable via HTTP MCP", true, `${who?.participants?.length ?? 0} participant(s)`);
+      participants = who?.participants ?? [];
+      check("daemon reachable via HTTP MCP", true, `${participants.length} participant(s)`);
       await conn.close();
     } catch (e) {
       allOk = false;
@@ -70,6 +73,24 @@ export async function doctor() {
     const tag = skillOk ? "✓" : "✗";
     console.log(`  ${tag} ${a.name}: skill ${skillOk ? "present" : "MISSING"} at ${skillPath}`);
     if (!skillOk) allOk = false;
+  }
+
+  if (daemonUp) {
+    console.log("");
+    console.log(`room liveness  (fresh ≤${FRESH_MAX_S}s · stale ≤${STALE_MAX_S}s · dead >${STALE_MAX_S}s):`);
+    if (participants.length === 0) {
+      console.log("  (no participants registered)");
+    } else {
+      const rows = liveness(participants);
+      let anyStalled = false;
+      for (const r of rows) {
+        if (r.status === "stale" || r.status === "dead") anyStalled = true;
+        console.log(`  ${STATUS_TAG[r.status]} @${r.handle.padEnd(8)} ${r.status.padEnd(5)} (last poll ${fmtAge(r.ageS)} ago)`);
+      }
+      if (anyStalled) {
+        console.log("  → stalled agents may need a poke: `murmur poke <handle>`");
+      }
+    }
   }
 
   console.log("");

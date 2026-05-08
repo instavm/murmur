@@ -40,7 +40,7 @@ export function makeAuditor(auditPath, label) {
 }
 
 export const parseMentions = (body) =>
-  [...body.matchAll(/@([a-zA-Z0-9_-]+)/g)].map((m) => m[1]);
+  [...body.matchAll(/(?<![A-Za-z0-9_])@([a-zA-Z0-9_-]+)/g)].map((m) => m[1]);
 
 export const cursorToInt = (c) => {
   if (!c) return 0;

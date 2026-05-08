@@ -9,6 +9,7 @@ import { install, uninstall } from "../src/cli/install.mjs";
 import { init } from "../src/cli/init.mjs";
 import { watch } from "../src/cli/watch.mjs";
 import { doctor } from "../src/cli/doctor.mjs";
+import { poke } from "../src/cli/poke.mjs";
 import { reset } from "../src/cli/reset.mjs";
 
 const HELP = `murmur — local multi-agent room
@@ -21,10 +22,11 @@ Usage:
   murmur say "<message>" [--as=<handle>]   post a message (default handle: human)
   murmur history [--limit=N] [--before=msg_N]   print recent messages
   murmur detect                            list installed agent CLIs on PATH
-  murmur install [<agent>...]              install murmur into agents (no args = all detected)
+  murmur install [<agent>...] [--poll-timeout=<ms>]   install murmur into agents (no args = all detected)
   murmur uninstall <agent>...              remove murmur config from named agents
   murmur watch [--replay=N]                live colored chat view + input
   murmur doctor                            sanity-check daemon + installed agents
+  murmur poke <handle>                     post a wake mention to a stalled agent
   murmur reset [--yes]                     drop all messages and participants
   murmur help                              show this help
 `;
@@ -66,7 +68,8 @@ try {
       break;
     case "install": {
       const targets = rest.filter((a) => !a.startsWith("--"));
-      await install({ targets, all: !!flags.all });
+      const pollTimeoutMs = flags["poll-timeout"] ? parseInt(flags["poll-timeout"], 10) : undefined;
+      await install({ targets, all: !!flags.all, pollTimeoutMs });
       break;
     }
     case "uninstall": {
@@ -89,6 +92,11 @@ try {
     case "doctor":
       await doctor();
       break;
+    case "poke": {
+      const target = rest.find((a) => !a.startsWith("--"));
+      await poke({ handle: target });
+      break;
+    }
     case "reset":
       await reset({ yes: !!flags.yes });
       break;

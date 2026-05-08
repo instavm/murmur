@@ -86,6 +86,40 @@ test("doctor runs without crashing post-start", () => {
   // we only need it to not crash with a stack trace.
   ok(r.status === 0 || r.status === 1, `unexpected exit ${r.status}: ${r.stderr}`);
   ok(!r.stderr.includes("Error:"), `stderr stack: ${r.stderr}`);
+  // After say() above we registered @tester and @human; doctor should now
+  // print a room-liveness section listing them as fresh.
+  includes(r.stdout, "room liveness");
+  includes(r.stdout, "@tester");
+  includes(r.stdout, "fresh");
+});
+
+test("poke <handle> posts a wake mention as @human", () => {
+  const r = murmur(["poke", "tester"]);
+  eq(r.status, 0);
+  const h = murmur(["history", "--limit=5"]);
+  includes(h.stdout, "@tester still alive");
+  includes(h.stdout, "human");
+});
+
+test("poke without handle fails with usage", () => {
+  const r = murmur(["poke"]);
+  ok(r.status !== 0, "should fail without handle");
+  includes(r.stderr, "usage: murmur poke");
+});
+
+test("doctor flags participants as dead with low liveness thresholds", async () => {
+  // Drop thresholds so the @tester participant from earlier `say` calls
+  // ages into "dead" within a couple of seconds.
+  const tightEnv = {
+    ...env,
+    MURMUR_LIVENESS_FRESH_S: "1",
+    MURMUR_LIVENESS_STALE_S: "2",
+  };
+  await new Promise((r) => setTimeout(r, 3000));
+  const r = spawnSync(process.execPath, [BIN, "doctor"], { env: tightEnv, encoding: "utf8" });
+  ok(r.status === 0 || r.status === 1, `unexpected exit ${r.status}: ${r.stderr}`);
+  includes(r.stdout, "dead");
+  includes(r.stdout, "murmur poke");
 });
 
 test("stop: daemon halts, pid file gone", () => {
@@ -93,6 +127,25 @@ test("stop: daemon halts, pid file gone", () => {
   started = false;
   eq(r.status, 0);
   ok(!existsSync(join(TMP, "murmurd.pid")), "pid file removed");
+});
+
+test("reset --yes (post-stop): clears db; restart yields empty room", () => {
+  const r = murmur(["reset", "--yes"]);
+  eq(r.status, 0);
+  includes(r.stdout, "cleared");
+  // Daemon comes back up cleanly against the wiped db, with zero messages.
+  const s = murmur(["start"]);
+  started = true;
+  eq(s.status, 0);
+  const post = murmur(["say", "post-reset", "--as=tester"]);
+  eq(post.status, 0);
+  const h = murmur(["history", "--limit=10"]);
+  ok(!h.stdout.includes("hello from cli"), "old messages gone");
+  includes(h.stdout, "post-reset");
+  // Tear down again so the subsequent stop test sees a running daemon.
+  const stop = murmur(["stop"]);
+  started = false;
+  eq(stop.status, 0);
 });
 
 test("status after stop: daemon down", () => {

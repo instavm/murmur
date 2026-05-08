@@ -160,5 +160,49 @@ test("history limit + before pagination", async () => {
   await c.close();
 });
 
+test("mention parsing: emails and URLs are NOT mentions", async () => {
+  const a = await newClient("alice-label");
+  await call(a, "register", { handle: "alice", agent_type: "claude-code" });
+  const s = await call(a, "say", {
+    handle: "alice",
+    message: "ping @bob — also email support@example.com and addr foo.bar@baz.io but @charlie is real",
+  });
+  ok(s.message_id.startsWith("msg_"));
+  const h = await call(a, "history", { limit: 1 });
+  // Must include the explicit mentions, must NOT include the email-derived ones.
+  eq(h.messages[0].mentions, ["bob", "charlie"]);
+  await a.close();
+});
+
+test("mention parsing: edge cases (@@x, leading @, trailing punct)", async () => {
+  const a = await newClient("alice-label");
+  await call(a, "register", { handle: "alice", agent_type: "claude-code" });
+  await call(a, "say", { handle: "alice", message: "@bob, hi! also @@charlie and (@dave) end." });
+  const h = await call(a, "history", { limit: 1 });
+  // @bob with comma → bob; @@charlie → charlie (the second @ is preceded by @, not word char);
+  // (@dave) → dave; trailing punctuation does not get included.
+  eq(h.messages[0].mentions, ["bob", "charlie", "dave"]);
+  await a.close();
+});
+
+test("concurrent say: 20 parallel posts → unique, monotonic message_ids", async () => {
+  const a = await newClient("alice-label");
+  await call(a, "register", { handle: "alice", agent_type: "claude-code" });
+  const N = 20;
+  const results = await Promise.all(
+    Array.from({ length: N }, (_, i) =>
+      call(a, "say", { handle: "alice", message: `concurrent-${i}` }),
+    ),
+  );
+  const ids = results.map((r) => parseInt(r.message_id.slice(4), 10));
+  eq(new Set(ids).size, N, "all message_ids unique");
+  const sorted = [...ids].sort((x, y) => x - y);
+  // Strictly monotonic with no gaps within the issued range.
+  for (let i = 1; i < sorted.length; i++) {
+    eq(sorted[i] - sorted[i - 1], 1, `gap at ${i}: ${sorted[i - 1]} → ${sorted[i]}`);
+  }
+  await a.close();
+});
+
 await run();
 await teardown();
