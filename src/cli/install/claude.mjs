@@ -16,7 +16,7 @@ function runClaude(args) {
   });
 }
 
-export async function install({ handle = HANDLE } = {}) {
+export async function install({ handle = HANDLE, pollTimeoutMs } = {}) {
   const url = daemonUrl(handle);
   const results = [];
   try {
@@ -27,7 +27,7 @@ export async function install({ handle = HANDLE } = {}) {
     const msg = (e.stderr || e.message || "").toString().split("\n")[0];
     throw new Error(`claude mcp add failed: ${msg}`);
   }
-  const skill = renderSkill({ handle, agent_type: AGENT_TYPE });
+  const skill = renderSkill({ handle, agent_type: AGENT_TYPE, poll_timeout_ms: pollTimeoutMs });
   const section = `## Murmur multi-agent room\n\n${skill}`;
   const r = upsertMarkedSection(CLAUDE_MD, section);
   results.push({ kind: "skill", ...r });

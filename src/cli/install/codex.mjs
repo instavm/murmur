@@ -80,10 +80,10 @@ function upsertCodexMcp(handle) {
   return { kind: "mcp", action, path: CONFIG_TOML, detail };
 }
 
-export async function install({ handle = HANDLE } = {}) {
+export async function install({ handle = HANDLE, pollTimeoutMs } = {}) {
   const results = [];
   results.push(upsertCodexMcp(handle));
-  const skill = renderSkill({ handle, agent_type: AGENT_TYPE });
+  const skill = renderSkill({ handle, agent_type: AGENT_TYPE, poll_timeout_ms: pollTimeoutMs });
   const section = `# Murmur multi-agent room\n\n${skill}`;
   results.push({ kind: "skill", ...upsertMarkedSection(AGENTS_MD, section) });
   return results;

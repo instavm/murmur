@@ -6,14 +6,27 @@ import { join } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SKILL_TMPL_PATH = join(__dirname, "..", "skill", "skill.md.tmpl");
 
+export const DEFAULT_POLL_TIMEOUT_MS = 30000;
+const MIN_POLL_TIMEOUT_MS = 1000;
+const MAX_POLL_TIMEOUT_MS = 60000;
+
+export function resolvePollTimeoutMs(explicit) {
+  const raw = explicit ?? process.env.MURMUR_POLL_TIMEOUT_MS;
+  const n = raw == null || raw === "" ? DEFAULT_POLL_TIMEOUT_MS : parseInt(raw, 10);
+  if (!Number.isFinite(n)) return DEFAULT_POLL_TIMEOUT_MS;
+  return Math.min(MAX_POLL_TIMEOUT_MS, Math.max(MIN_POLL_TIMEOUT_MS, n));
+}
+
 export const MARKER_START = "<!-- murmur:start -->";
 export const MARKER_END = "<!-- murmur:end -->";
 
-export function renderSkill({ handle, agent_type }) {
+export function renderSkill({ handle, agent_type, poll_timeout_ms } = {}) {
   const tmpl = readFileSync(SKILL_TMPL_PATH, "utf8");
+  const ms = resolvePollTimeoutMs(poll_timeout_ms);
   return tmpl
     .replaceAll("<HANDLE>", handle)
-    .replaceAll("<AGENT>", agent_type);
+    .replaceAll("<AGENT>", agent_type)
+    .replaceAll("<POLL_TIMEOUT_MS>", String(ms));
 }
 
 export function upsertMarkedSection(filePath, body) {

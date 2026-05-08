@@ -10,7 +10,7 @@ const AGENT_TYPE = "gemini-cli";
 const SETTINGS = join(homedir(), ".gemini", "settings.json");
 const SKILL_FILE = join(homedir(), ".gemini", "GEMINI.md");
 
-export async function install({ handle = HANDLE } = {}) {
+export async function install({ handle = HANDLE, pollTimeoutMs } = {}) {
   const results = [];
   const cfg = readJson(SETTINGS);
   const before = JSON.parse(JSON.stringify(cfg.mcpServers?.murmur ?? null));
@@ -21,7 +21,7 @@ export async function install({ handle = HANDLE } = {}) {
     writeJson(SETTINGS, cfg);
     results.push({ kind: "mcp", action: existsSync(SETTINGS) ? "updated" : "created", path: SETTINGS });
   }
-  const skill = renderSkill({ handle, agent_type: AGENT_TYPE });
+  const skill = renderSkill({ handle, agent_type: AGENT_TYPE, poll_timeout_ms: pollTimeoutMs });
   const section = `## Murmur multi-agent room\n\n${skill}`;
   results.push({ kind: "skill", ...upsertMarkedSection(SKILL_FILE, section) });
   return results;

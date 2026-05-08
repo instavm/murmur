@@ -10,7 +10,7 @@ const AGENT_TYPE = "cursor-agent";
 const MCP_FILE = join(homedir(), ".cursor", "mcp.json");
 const SKILL_FILE = join(homedir(), ".cursor", "rules", "murmur.md");
 
-export async function install({ handle = HANDLE } = {}) {
+export async function install({ handle = HANDLE, pollTimeoutMs } = {}) {
   const results = [];
   const cfg = readJson(MCP_FILE);
   const before = JSON.parse(JSON.stringify(cfg.mcpServers?.murmur ?? null));
@@ -21,7 +21,7 @@ export async function install({ handle = HANDLE } = {}) {
     writeJson(MCP_FILE, cfg);
     results.push({ kind: "mcp", action: existsSync(MCP_FILE) ? "updated" : "created", path: MCP_FILE });
   }
-  const skill = renderSkill({ handle, agent_type: AGENT_TYPE });
+  const skill = renderSkill({ handle, agent_type: AGENT_TYPE, poll_timeout_ms: pollTimeoutMs });
   const section = `# Murmur multi-agent room\n\n${skill}`;
   results.push({ kind: "skill", ...upsertMarkedSection(SKILL_FILE, section) });
   return results;

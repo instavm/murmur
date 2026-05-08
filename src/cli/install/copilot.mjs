@@ -10,7 +10,7 @@ const AGENT_TYPE = "copilot-cli";
 const MCP_FILE = join(homedir(), ".copilot", "mcp-config.json");
 const SKILL_FILE = join(homedir(), ".copilot", "AGENTS.md");
 
-export async function install({ handle = HANDLE } = {}) {
+export async function install({ handle = HANDLE, pollTimeoutMs } = {}) {
   const results = [];
   const cfg = readJson(MCP_FILE);
   const before = JSON.parse(JSON.stringify(cfg.mcpServers?.murmur ?? null));
@@ -21,7 +21,7 @@ export async function install({ handle = HANDLE } = {}) {
     writeJson(MCP_FILE, cfg);
     results.push({ kind: "mcp", action: existsSync(MCP_FILE) ? "updated" : "created", path: MCP_FILE });
   }
-  const skill = renderSkill({ handle, agent_type: AGENT_TYPE });
+  const skill = renderSkill({ handle, agent_type: AGENT_TYPE, poll_timeout_ms: pollTimeoutMs });
   const section = `# Murmur multi-agent room\n\n${skill}\n\n_Note: copilot CLI loads AGENTS.md from CWD upward; if launching copilot from a directory tree without an AGENTS.md, copy this file there or symlink it._`;
   results.push({ kind: "skill", ...upsertMarkedSection(SKILL_FILE, section) });
   return results;

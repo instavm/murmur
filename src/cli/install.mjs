@@ -10,7 +10,7 @@ const ADAPTERS = {
 
 function pad(s, n) { return String(s).padEnd(n); }
 
-export async function install({ targets, all = false } = {}) {
+export async function install({ targets, all = false, pollTimeoutMs } = {}) {
   const detected = detectAll();
   const wanted = (() => {
     if (targets && targets.length > 0) {
@@ -41,7 +41,7 @@ export async function install({ targets, all = false } = {}) {
     }
     try {
       const mod = await loader();
-      const r = await mod.install({});
+      const r = await mod.install({ pollTimeoutMs });
       console.log(`✓ ${pad(a.name, 8)} ${a.version ? `(${a.version})` : ""}`);
       for (const step of r) {
         const tag = step.kind === "mcp" ? "mcp" : "skill";

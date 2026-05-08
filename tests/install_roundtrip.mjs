@@ -149,4 +149,12 @@ test("copilot uninstall preserves a pre-existing playwright stdio entry", async 
   ok(!("murmur" in cfg.mcpServers), "murmur removed");
 });
 
+test("copilot install threads pollTimeoutMs into the rendered skill", async () => {
+  rmSync(join(TMP, ".copilot"), { recursive: true, force: true });
+  await copilot.install({ pollTimeoutMs: 12345 });
+  const md = readFileSync(join(TMP, ".copilot", "AGENTS.md"), "utf8");
+  includes(md, "timeout_ms=12345");
+  ok(!md.includes("<POLL_TIMEOUT_MS>"));
+});
+
 await run();

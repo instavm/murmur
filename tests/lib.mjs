@@ -109,6 +109,50 @@ test("renderSkill substitutes <HANDLE> and <AGENT>", () => {
   ok(!out.includes("<AGENT>"), "no unsubstituted <AGENT>");
 });
 
+test("renderSkill defaults timeout to 30000 ms when unspecified", () => {
+  delete process.env.MURMUR_POLL_TIMEOUT_MS;
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "timeout_ms=30000");
+  ok(!out.includes("<POLL_TIMEOUT_MS>"));
+});
+
+test("renderSkill honours explicit poll_timeout_ms", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x", poll_timeout_ms: 15000 });
+  includes(out, "timeout_ms=15000");
+});
+
+test("renderSkill clamps below 1s and above 60s", () => {
+  const lo = renderSkill({ handle: "a", agent_type: "x", poll_timeout_ms: 50 });
+  includes(lo, "timeout_ms=1000");
+  const hi = renderSkill({ handle: "a", agent_type: "x", poll_timeout_ms: 999999 });
+  includes(hi, "timeout_ms=60000");
+});
+
+test("renderSkill reads MURMUR_POLL_TIMEOUT_MS env when no explicit arg", () => {
+  process.env.MURMUR_POLL_TIMEOUT_MS = "20000";
+  try {
+    const out = renderSkill({ handle: "a", agent_type: "x" });
+    includes(out, "timeout_ms=20000");
+  } finally {
+    delete process.env.MURMUR_POLL_TIMEOUT_MS;
+  }
+});
+
+test("renderSkill emits ack-first, heartbeat, and silent-stall guidance", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "ACK FIRST");
+  includes(out, "Heartbeat");
+  includes(out, "Silent-stall guard");
+});
+
+test("renderSkill emits handoff-via-artifact guidance (issue / md / PR)", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "gh issue create");
+  includes(out, "MURMUR_TASKS/");
+  includes(out, "gh pr create");
+  includes(out, "staging");
+});
+
 // ── json_config.mjs ───────────────────────────────────────────────────────
 
 test("readJson returns {} for missing file", () => {
