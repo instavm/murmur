@@ -4,7 +4,11 @@
   "description": "Local multi-agent room — coding agents (claude, codex, gemini, cursor, copilot) coordinate live via a shared MCP HTTP daemon.",
   "type": "module",
   "license": "Apache-2.0",
-  "author": "InstaVM contributors",
+  "author": {
+    "name": "InstaVM",
+    "email": "hello@instavm.io",
+    "url": "https://instavm.io"
+  },
   "homepage": "https://github.com/instavm/murmur#readme",
   "repository": {
     "type": "git",
