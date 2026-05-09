@@ -176,6 +176,19 @@ test("renderSkill emits delivery-hint guidance for say()", () => {
   includes(out, "no ack from @");
 });
 
+test("renderSkill emits orchestrator/coordination rules", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "orchestrator");
+  // Must enumerate via who() before delegating.
+  includes(out, "who()");
+  // Must call out the @claude-2 / handle-collision pitfall explicitly.
+  includes(out, "identity-scoped");
+  // Must require waiting for delegated replies, not just sending.
+  includes(out, "wait-and-integrate");
+  // Must require honest summary that lists what was used per agent.
+  includes(out, "shipping without");
+});
+
 // ── json_config.mjs ───────────────────────────────────────────────────────
 
 test("readJson returns {} for missing file", () => {

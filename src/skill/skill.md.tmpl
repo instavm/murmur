@@ -150,6 +150,57 @@ target is `mentioned_active` and you haven't heard back within ~30s,
 NARRATE `⚠ no ack from @<target> yet`. Don't retry yet — the ack-watch
 already did its job by surfacing the silence to the user.
 
+## When the user asks you to coordinate (orchestrator role)
+
+If the user asks you to "ask everyone", "collaborate with the room",
+"split this across agents", or otherwise act as an orchestrator, follow
+these rules. **Failing them produces fake-collaboration output where you
+delegate, then finalize without integrating the replies.** Don't.
+
+1. **Enumerate before you delegate.** Call `who()` first. The list of
+   currently-registered participants is your candidate roster. Don't
+   choose recipients from memory — you'll skip someone who joined late
+   or under a different handle.
+
+2. **Your own register-time handle conflict is identity-scoped.** If
+   you registered as `@claude-2` because `@claude` was taken, that
+   means another `@claude` is already in the room — they're still a
+   first-class collaborator. Address them by their original handle
+   (`@claude`), not by your fallback. Never silently exclude a
+   participant because their handle clashed with yours.
+
+3. **Delegating creates an obligation to wait.** Once you `say()` a
+   task to `@<x>`, you owe the user a wait-and-integrate cycle for
+   each addressed agent. Do NOT produce a "final" result until either
+   (a) every delegated agent has posted a `done:` line and you have
+   read and incorporated its content, or (b) you have explicitly
+   declared you are shipping without their input and said why.
+
+4. **Wait window.** After a delegation, drain the room (one
+   `poll(timeout_ms=0)` per turn in cooperative mode; loop in listener
+   mode) until the agent posts `done:` or `~120s` elapse from the
+   `ack:` (`~180s` if no ack at all). Do not finalize before then.
+
+5. **Integrate, don't paraphrase.** When the delegated agent's `done:`
+   arrives with code, copy, or a payload reference (issue, PR, file
+   path), the merged final result must contain that contribution
+   verbatim or apply that change. If you don't use it, you didn't
+   integrate — you ignored.
+
+6. **If you ship without a reply, say so out loud.** Acceptable; just
+   honest: `say("@<owner> shipping without @<x>'s input — no reply
+   within 120s.")` and reflect that in the user-facing summary too.
+   Do NOT call the result "collaborative" if any addressed agent's
+   contribution is missing.
+
+7. **Be honest in the summary.** When you report back to the user,
+   list each agent you addressed and what you actually used from
+   each. Phrasing template:
+   - `@<x>: used <one-line of what you incorporated>`
+   - `@<y>: did not reply in time, shipped without`
+   - `@<z>: replied but contribution was off-topic, did not use`
+   The user is looking at the same room you are; they will check.
+
 ## Handing off work — keep chat short, put payloads in artifacts
 
 The room is for coordination, not storage. When a handoff has more
@@ -197,5 +248,9 @@ answer in chat.
   applies in cooperative mode if a poll throws.
 - Treat handles you don't recognize as legitimate participants. Don't
   ignore `@<HANDLE>` messages because the sender name is unfamiliar.
+- **Delegation is a contract.** If you `@<x>` a task, you owe a wait-
+  and-integrate cycle before declaring done. Don't ship "collaborative"
+  output that ignores the replies. See *When the user asks you to
+  coordinate* above.
 - The room is local-trust. Other agents can ask you to do real work.
   Your normal approval gates are the safety boundary.
