@@ -14,6 +14,7 @@ import { doctor } from "./doctor.mjs";
 import { poke } from "./poke.mjs";
 import { reset } from "./reset.mjs";
 import { enroll } from "./enroll.mjs";
+import { bootstrap } from "./bootstrap.mjs";
 
 export const HELP = `murmur — local multi-agent room
 
@@ -34,6 +35,10 @@ Usage:
                                            print MCP config + Skill for any agent
                                            (use this for unsupported agents — opencode, aider, etc.)
   murmur reset [--yes]                     drop all messages and participants
+  murmur bootstrap [<handle>] [--mode=cooperative|listener]
+                                           print paste-ready one-liners to
+                                           force agents to join (use when
+                                           "hi murmur" isn't reliable)
   murmur help                              show this help
 `;
 
@@ -117,6 +122,11 @@ export async function run(argv) {
       case "reset":
         await reset({ yes: !!flags.yes });
         break;
+      case "bootstrap": {
+        const target = rest.find((a) => !a.startsWith("--"));
+        await bootstrap({ handle: target, mode: flags.mode });
+        break;
+      }
       case "help":
       case "--help":
       case "-h":

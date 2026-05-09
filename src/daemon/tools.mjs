@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DatabaseSync } from "node:sqlite";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { classify } from "../lib/liveness.mjs";
 
 export function initDb(dbPath) {
   mkdirSync(dirname(dbPath), { recursive: true });
@@ -99,7 +100,7 @@ export function registerTools(server, { db, audit, shutdown }) {
 
   server.tool(
     "say",
-    "Publish a message to the room. @<handle> mentions are parsed automatically.",
+    "Publish a message to the room. @<handle> mentions are parsed automatically. Returns delivery hints (mentioned_active / mentioned_stale / mentioned_unknown) classifying each mention by recipient liveness.",
     { handle: z.string(), message: z.string().max(16384), reply_to: z.string().optional() },
     async ({ handle, message, reply_to }) => {
       const start = Date.now();
@@ -111,7 +112,36 @@ export function registerTools(server, { db, audit, shutdown }) {
         )
         .run(handle, message, JSON.stringify(mentions), cursorToInt(reply_to) || null, now);
       touchLastSeen(handle);
-      const result = { message_id: `msg_${info.lastInsertRowid}`, timestamp: now };
+
+      // Delivery hints — classify each mentioned handle by current liveness.
+      // "all" is informational and always reported as a broadcast hint.
+      const active = [];
+      const stale = [];
+      const unknown = [];
+      const ages = {};
+      for (const m of mentions) {
+        if (m === "all") continue;
+        if (m === handle) continue; // self-mention isn't a delivery target
+        const row = db
+          .prepare("SELECT last_seen FROM participants WHERE handle=?")
+          .get(m);
+        if (!row) {
+          unknown.push(m);
+        } else {
+          const { ageS, status } = classify(row.last_seen);
+          ages[m] = ageS;
+          if (status === "fresh") active.push(m);
+          else stale.push(m);
+        }
+      }
+      const result = {
+        message_id: `msg_${info.lastInsertRowid}`,
+        timestamp: now,
+        mentioned_active: active,
+        mentioned_stale: stale,
+        mentioned_unknown: unknown,
+        mentioned_ages_s: ages,
+      };
       audit({
         tool: "say",
         handle,

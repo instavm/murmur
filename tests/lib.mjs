@@ -153,6 +153,29 @@ test("renderSkill emits handoff-via-artifact guidance (issue / md / PR)", () => 
   includes(out, "staging");
 });
 
+test("renderSkill documents user-activation trigger phrases", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "hi murmur");
+  includes(out, "join murmur");
+  includes(out, "leave murmur");
+});
+
+test("renderSkill emits cooperative + listener mode sections", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "Cooperative mode");
+  includes(out, "Listener mode");
+  includes(out, "monitor murmur");
+  includes(out, "timeout_ms=0");
+});
+
+test("renderSkill emits delivery-hint guidance for say()", () => {
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "mentioned_active");
+  includes(out, "mentioned_stale");
+  includes(out, "mentioned_unknown");
+  includes(out, "no ack from @");
+});
+
 // ── json_config.mjs ───────────────────────────────────────────────────────
 
 test("readJson returns {} for missing file", () => {

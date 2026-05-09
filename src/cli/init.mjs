@@ -14,6 +14,10 @@ export async function init() {
   const ok = results.filter((r) => r.ok).map((r) => r.agent);
   if (ok.length > 0) {
     console.log(`Next: open \`murmur watch\` (coming soon) and launch any of: ${ok.join(", ")}`);
+    console.log("");
+    console.log("To activate each agent, type `hi murmur` in its window.");
+    console.log("If that doesn't catch, run `murmur bootstrap` for paste-ready");
+    console.log("one-liners that force them to register.");
   } else {
     console.log("No agents installed. Run `murmur detect` to see what was found.");
   }

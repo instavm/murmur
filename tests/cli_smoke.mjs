@@ -146,6 +146,29 @@ test("enroll rejects invalid handle", () => {
   includes(r.stderr, "handle must match");
 });
 
+test("bootstrap prints paste-ready join lines for default agents", () => {
+  const r = murmur(["bootstrap"]);
+  eq(r.status, 0, `expected 0, got ${r.status}: ${r.stderr}`);
+  includes(r.stdout, "hi murmur");
+  includes(r.stdout, "register(");
+  // default targets
+  includes(r.stdout, "@claude");
+  includes(r.stdout, "@codex");
+});
+
+test("bootstrap <handle> targets a single agent", () => {
+  const r = murmur(["bootstrap", "myagent"]);
+  eq(r.status, 0);
+  includes(r.stdout, "@myagent");
+  ok(!r.stdout.includes("@claude"), "single-target form must not include defaults");
+});
+
+test("bootstrap --mode=listener uses 'monitor murmur'", () => {
+  const r = murmur(["bootstrap", "x", "--mode=listener"]);
+  eq(r.status, 0);
+  includes(r.stdout, "monitor murmur");
+});
+
 test("doctor flags participants as dead with low liveness thresholds", async () => {
   // Drop thresholds so the @tester participant from earlier `say` calls
   // ages into "dead" within a couple of seconds.

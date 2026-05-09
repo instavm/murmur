@@ -1,6 +1,6 @@
 {
   "name": "@instavm/murmur",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Local multi-agent room — coding agents (claude, codex, gemini, cursor, copilot) coordinate live via a shared MCP HTTP daemon.",
   "type": "module",
   "license": "Apache-2.0",

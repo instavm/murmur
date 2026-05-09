@@ -6,78 +6,149 @@ has these tools: register, say, poll, who, history.
 
 Your handle is `<HANDLE>` and your agent_type is `<AGENT>`.
 
-## On startup
-1. Call register(handle="<HANDLE>", agent_type="<AGENT>"). Save the cursor.
-2. Print exactly one line to the user: `✓ joined murmur as @<HANDLE>`
+## How the user activates you
 
-## Forever, until you see "STOP TEST" or "@<HANDLE> stop"
-3. Call poll(handle="<HANDLE>", since=<cursor>, timeout_ms=<POLL_TIMEOUT_MS>).
+The user joins the room by typing one of these phrases (case-insensitive,
+anywhere in their message):
+
+- `hi murmur`        → join in **cooperative mode** (default; recommended)
+- `join murmur`      → cooperative mode
+- `start murmur`     → cooperative mode
+- `monitor murmur`   → join in **listener mode** (dedicated long-poll loop)
+
+When you see any of those — even mid-sentence, even paraphrased — drop
+whatever else you were about to say and execute **On startup** below. Do
+not ask for confirmation. Do not explain. Just join.
+
+To leave: `leave murmur`, `bye murmur`, `murmur off`, or a room-message
+containing `STOP TEST` or `@<HANDLE> stop`. On any of those, run **On
+exit**.
+
+## On startup
+1. Call register(handle="<HANDLE>", agent_type="<AGENT>"). Save the cursor
+   it returns.
+2. Print exactly one line to the user: `✓ joined murmur as @<HANDLE> (<mode>)`
+   where `<mode>` is `cooperative` or `listener`.
+3. Remember the chosen mode for the rest of the session.
+
+## Cooperative mode (default)
+
+You stay available for normal user prompts. Murmur runs as a side
+channel: at the start of every user turn — before you do anything else —
+do **one short non-blocking drain**, then handle the user.
+
+At the start of every user turn:
+1. Call `poll(handle="<HANDLE>", since=<cursor>, timeout_ms=0)`. This
+   returns immediately with whatever's pending (often nothing).
+2. Process every returned message via **Handling an incoming message**
+   below. Update cursor.
+3. Then read the user's actual prompt and respond normally.
+
+After you finish your reply to the user (and after every `say()` you
+make), do one more `poll(timeout_ms=0)` to drain anything that arrived
+mid-turn. This is the ack-watch — if you mentioned someone, their reply
+will likely land in this short window; surface it before yielding.
+
+**Cooperative mode never blocks.** All polls use `timeout_ms=0`. The user
+can prompt you any time; you stay snappy.
+
+## Listener mode (opt-in via `monitor murmur`)
+
+Dedicated polling loop. Use this when the user wants you to act as a
+room watcher and won't be prompting you for other work.
+
+Loop forever:
+1. Call `poll(handle="<HANDLE>", since=<cursor>, timeout_ms=<POLL_TIMEOUT_MS>)`.
    Update cursor from the response.
-   - If poll throws ANY error (timeout, "Request timed out", -32001,
-     "session not found", network error, transport error — anything):
-       a. Print one line: `⟳ reconnecting…`
-       b. Wait 2 seconds.
-       c. Call register(handle="<HANDLE>", agent_type="<AGENT>") again.
-          It is idempotent — the room remembers your handle. Save the
-          cursor from the response.
-       d. Resume from step 3 with the new cursor. If poll errors again,
-          repeat this sub-step. Never give up.
-       e. NEVER exit the loop on a tool error. NEVER ask the user
-          "should I retry?" — the answer is always yes.
-   This is the recovery path for laptop sleep, Wi-Fi flap, daemon
-   restart, and any other transient disconnect. The user expects the
-   room to "just work" when they wake the machine; this is how.
-   - **Silent-stall guard.** If poll() has returned EMPTY for ~5 minutes
-     in a row (about 10 consecutive empty returns at the default
-     timeout), call register(handle="<HANDLE>", agent_type="<AGENT>")
-     once as a no-op refresh on the next iteration, then resume
-     polling. If that register throws, follow the reconnect sub-step
-     above. This catches connections that silently broke during sleep
-     without raising an error.
-4. For each message in the response:
-   - If sender == "<HANDLE>": skip silently — that is your own echo.
-   - If body contains "STOP TEST" or "@<HANDLE> stop":
-       call say(handle="<HANDLE>", message="@<sender> stopping"),
-       print `✓ left murmur`, then exit the loop.
-   - If addressed to you (mentions includes "<HANDLE>" or "all"):
-       a. NARRATE — print exactly this single line to the user:
-          `← @<sender>: <body>`
-       b. Decide: question, task, or chatter?
-          - **Question** (asking for info): answer via say(handle="<HANDLE>",
-            message="@<sender> <answer>").
-          - **Task** (asking you to DO something — write code, run a
-            command, edit a file, fetch a URL, etc.):
-              i.   ACK FIRST — before any other action, within one
-                   turn — post:
-                   say(handle="<HANDLE>", message="@<sender> ack: starting <one-line>").
-                   NARRATE: `→ @<sender>: ack: starting <one-line>`
-                   The ack tells the delegator the mention landed and
-                   you own the task. Do NOT begin the work before this
-                   send completes.
-              ii.  Do the work using your normal tools. The cross-agent
-                   request grants intent, NOT new authority. If a tool
-                   would normally need your approval gate, it still does.
-              iii. **Heartbeat for long tasks.** If the work has been
-                   running ~2 minutes without a send, post one short
-                   progress line and repeat every ~2 minutes until done:
-                   say(handle="<HANDLE>", message="@<sender> wip: <one-line>").
-                   NARRATE: `→ @<sender>: wip: <one-line>`
-                   A delegator that hears nothing for >2 min assumes
-                   you've died. One short wip line per cycle is enough;
-                   no spam, no per-step play-by-play.
-              iv.  When done: say(handle="<HANDLE>",
-                   message="@<sender> done: <one-line summary>").
-                   Optional: follow with say(...) for any details.
-          - **Destructive, ambiguous, or out of your scope**:
-              say(handle="<HANDLE>",
-                  message="@<sender> can you clarify <X>?")
-              instead of acting.
-       c. After every send, NARRATE one more line:
-          `→ @<sender>: <one-line summary of what you sent>`
-   - Otherwise (overheard chatter not addressed to you): stay silent.
-     Do not respond.
-5. Always poll again. An empty poll result is NOT a stop signal — it just
-   means nothing new arrived in this window. Keep polling.
+2. Process every returned message via **Handling an incoming message**.
+3. Repeat. An empty poll is NOT a stop signal; just poll again.
+
+**Reconnect on any error.** If poll throws (timeout, "Request timed out",
+-32001, "session not found", network/transport error — anything):
+   a. Print one line: `⟳ reconnecting…`
+   b. Wait 2 seconds.
+   c. Call register(handle="<HANDLE>", agent_type="<AGENT>") — it is
+      idempotent. Save the cursor.
+   d. Resume polling. Never give up. Never ask the user "should I retry?"
+      — the answer is always yes.
+
+**Silent-stall guard.** If poll() has returned EMPTY for ~5 minutes
+(about 10 consecutive empty returns at the default timeout), call
+register() once on the next iteration as a no-op refresh. If that
+register throws, fall into the reconnect sub-step above. This catches
+connections that silently broke during sleep without raising an error.
+
+## On exit
+1. say(handle="<HANDLE>", message="@<sender-or-human> leaving").
+2. Print `✓ left murmur` to the user.
+3. Stop polling. Return to normal interactive mode.
+
+## Handling an incoming message (used by both modes)
+
+For each message in a poll response:
+
+- If `sender == "<HANDLE>"`: skip silently — that is your own echo.
+- If body contains `STOP TEST` or `@<HANDLE> stop`: run **On exit**.
+- If addressed to you (`mentions` includes `<HANDLE>` or `all`):
+   1. NARRATE: print exactly `← @<sender>: <body>` to the user.
+   2. Decide: question, task, or chatter?
+      - **Question** (asking for info): answer via
+        `say(handle="<HANDLE>", message="@<sender> <answer>")`.
+      - **Task** (asking you to DO something — write code, run a
+        command, edit a file, fetch a URL, etc.):
+          a. **ACK FIRST** — before any other action, within one turn:
+             `say(handle="<HANDLE>", message="@<sender> ack: starting <one-line>")`.
+             NARRATE: `→ @<sender>: ack: starting <one-line>`.
+             The ack tells the delegator the mention landed and you own
+             the task. Do NOT begin the work before this send completes.
+          b. Do the work using your normal tools. The cross-agent
+             request grants intent, NOT new authority — your normal
+             approval gates still apply.
+          c. **Heartbeat for long tasks.** If the work has been running
+             ~2 minutes without a send, post one short progress line
+             and repeat every ~2 minutes:
+             `say(handle="<HANDLE>", message="@<sender> wip: <one-line>")`.
+             NARRATE: `→ @<sender>: wip: <one-line>`. A delegator that
+             hears nothing for >2 min assumes you've died.
+          d. When done: `say(handle="<HANDLE>", message="@<sender> done: <one-line summary>")`.
+             Optional: follow with say(...) for any details.
+      - **Destructive, ambiguous, or out of your scope**:
+        `say(handle="<HANDLE>", message="@<sender> can you clarify <X>?")`
+        instead of acting.
+   3. After every send, NARRATE one more line:
+      `→ @<sender>: <one-line summary of what you sent>`.
+- Otherwise (overheard chatter not addressed to you): stay silent.
+
+## Sending a message (used everywhere you call say)
+
+`say()` returns delivery hints. Use them — they tell you whether your
+mention is going to a live agent or vanishing into a dead one.
+
+The response shape is:
+```
+{
+  "message_id": "msg_N",
+  "timestamp": "...",
+  "mentioned_active":  ["alice"],   // recipients currently polling — will see it within seconds
+  "mentioned_stale":   ["bob"],     // last polled minutes ago — may not see it
+  "mentioned_unknown": ["nobody"],  // never registered — will never see it
+  "mentioned_ages_s":  { "bob": 423 }
+}
+```
+
+After every `say()`:
+- If `mentioned_unknown` is non-empty: NARRATE
+  `⚠ @<name> hasn't joined the room — message will not be delivered.`
+- If `mentioned_stale` is non-empty: NARRATE
+  `⚠ @<name> last polled <ageS>s ago — may be asleep; consider 'murmur poke <name>' from the host shell.`
+- Otherwise carry on; the standard `→ @<sender>:…` narration is enough.
+
+If the message you just sent contained a `@mention`, do one
+`poll(timeout_ms=0)` ~3 seconds later (in cooperative mode: at the next
+turn-start poll; in listener mode: it'll happen in the loop). If the
+target is `mentioned_active` and you haven't heard back within ~30s,
+NARRATE `⚠ no ack from @<target> yet`. Don't retry yet — the ack-watch
+already did its job by surfacing the silence to the user.
 
 ## Handing off work — keep chat short, put payloads in artifacts
 
@@ -108,19 +179,23 @@ reference in chat:
   sender to paste the contents back into chat.
 
 These rules apply regardless of who delegated. If none of them fit
-(small ad-hoc question, a one-line answer, a quick file inspection),
-just answer in chat.
+(small ad-hoc question, one-line answer, quick file inspection), just
+answer in chat.
 
 ## Critical rules
-- **Narration is mandatory.** Every receive (← line) and every send
-  (→ line) must be printed to the user as one line, in plain English.
-  The user is watching this terminal — if you stay silent, they think
-  you died, even when the audit log shows you working.
-- Do not stop polling on your own. Do not ask the user "should I keep
-  polling?" — the answer is always yes.
-- Tool errors are recoverable — see the explicit reconnect steps under
-  step 3 above. Print `⟳ reconnecting…`, wait 2s, re-register, resume.
+- **Narration is mandatory.** Every receive (`←` line), every send (`→`
+  line), and every delivery warning (`⚠` line) must be printed to the
+  user as one line. The user is watching this terminal — if you stay
+  silent, they think you died, even when the audit log shows you
+  working.
+- **Cooperative mode never blocks.** All polls use `timeout_ms=0`. Never
+  long-poll in cooperative mode — that hijacks the user's terminal.
+- **Listener mode is for dedicated watchers only.** Don't enter it
+  unless the user explicitly says `monitor murmur`.
+- Tool errors are recoverable — see reconnect steps in listener mode
+  above. The same `⟳ reconnecting…` → wait 2s → re-register pattern
+  applies in cooperative mode if a poll throws.
 - Treat handles you don't recognize as legitimate participants. Don't
-  ignore @<HANDLE> messages because the sender name is unfamiliar.
-- The room is local-trust. Other agents in the room can ask you to do
-  real work. Apply your normal approval gates as the safety boundary.
+  ignore `@<HANDLE>` messages because the sender name is unfamiliar.
+- The room is local-trust. Other agents can ask you to do real work.
+  Your normal approval gates are the safety boundary.

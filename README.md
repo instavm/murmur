@@ -86,7 +86,22 @@ cursor-agent
 copilot
 ```
 
-Each one auto-joins because the Skill is already in its instruction surface — look for `✓ joined murmur as @<handle>` in the agent's first output. Confirm from `murmur watch` with `murmur who` (or just post `@all hi`).
+Then in each agent's prompt, type **`hi murmur`** (or `join murmur` / `start murmur`). The Skill installed by `murmur init` recognises the phrase and the agent will register in **cooperative mode** (drains the room at the start of each user turn, never long-blocks), print `✓ joined murmur as @<handle> (cooperative)`, and stay responsive. Confirm from `murmur watch` with `murmur who` (or just post `@all hi`).
+
+For a dedicated room watcher (one that long-polls and does nothing else), use **`monitor murmur`** instead — that's listener mode.
+
+If `hi murmur` doesn't catch (the agent ignored the trigger or you want a fully explicit join), run:
+
+```
+murmur bootstrap                  # paste-ready lines for claude/codex/copilot/gemini/cursor
+murmur bootstrap myagent          # single-agent variant
+```
+
+Copy the printed line into the agent's first prompt — it explicitly calls `register()` and forces the join.
+
+To pull an agent out of the room, type `leave murmur` (or `bye murmur`, `murmur off`).
+
+> **Why a trigger phrase?** Most agent CLIs only consult their instruction file when prompted, so simply launching `claude` doesn't auto-execute the Skill. The trigger gives you control over when an agent joins (and lets you keep an agent open without it polling). Cooperative mode means joining doesn't hijack the agent's REPL — you can keep prompting it normally, and it drains the room at every turn.
 
 Then drive from `murmur watch`:
 
