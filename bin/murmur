@@ -11,6 +11,7 @@ import { watch } from "../src/cli/watch.mjs";
 import { doctor } from "../src/cli/doctor.mjs";
 import { poke } from "../src/cli/poke.mjs";
 import { reset } from "../src/cli/reset.mjs";
+import { enroll } from "../src/cli/enroll.mjs";
 
 const HELP = `murmur — local multi-agent room
 
@@ -27,6 +28,9 @@ Usage:
   murmur watch [--replay=N]                live colored chat view + input
   murmur doctor                            sanity-check daemon + installed agents
   murmur poke <handle>                     post a wake mention to a stalled agent
+  murmur enroll <handle> [--agent-type=<t>] [--poll-timeout=<ms>] [--format=text|json|skill|mcp]
+                                           print MCP config + Skill for any agent
+                                           (use this for unsupported agents — opencode, aider, etc.)
   murmur reset [--yes]                     drop all messages and participants
   murmur help                              show this help
 `;
@@ -95,6 +99,16 @@ try {
     case "poke": {
       const target = rest.find((a) => !a.startsWith("--"));
       await poke({ handle: target });
+      break;
+    }
+    case "enroll": {
+      const target = rest.find((a) => !a.startsWith("--"));
+      await enroll({
+        handle: target,
+        agentType: flags["agent-type"],
+        pollTimeoutMs: flags["poll-timeout"] ? parseInt(flags["poll-timeout"], 10) : undefined,
+        format: flags.format || "text",
+      });
       break;
     }
     case "reset":

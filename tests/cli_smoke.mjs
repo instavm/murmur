@@ -107,6 +107,36 @@ test("poke without handle fails with usage", () => {
   includes(r.stderr, "usage: murmur poke");
 });
 
+test("enroll <handle> prints MCP block and Skill", () => {
+  const r = murmur(["enroll", "opencode"]);
+  eq(r.status, 0);
+  includes(r.stdout, "mcpServers");
+  includes(r.stdout, "/mcp/opencode");
+  includes(r.stdout, "Murmur — multi-agent room participation");
+  includes(r.stdout, "@opencode");
+});
+
+test("enroll --format=mcp prints only valid MCP JSON", () => {
+  const r = murmur(["enroll", "myagent", "--format=mcp"]);
+  eq(r.status, 0);
+  const j = JSON.parse(r.stdout);
+  ok(j.mcpServers?.murmur?.url?.endsWith("/mcp/myagent"), "url ends with /mcp/myagent");
+  eq(j.mcpServers.murmur.type, "http");
+});
+
+test("enroll --format=skill threads --poll-timeout into the rendered Skill", () => {
+  const r = murmur(["enroll", "x", "--poll-timeout=12345", "--format=skill"]);
+  eq(r.status, 0);
+  includes(r.stdout, "timeout_ms=12345");
+  ok(!r.stdout.includes("mcpServers"), "skill format omits MCP JSON");
+});
+
+test("enroll rejects invalid handle", () => {
+  const r = murmur(["enroll", "bad handle!"]);
+  ok(r.status !== 0, "should fail on invalid chars");
+  includes(r.stderr, "handle must match");
+});
+
 test("doctor flags participants as dead with low liveness thresholds", async () => {
   // Drop thresholds so the @tester participant from earlier `say` calls
   // ages into "dead" within a couple of seconds.

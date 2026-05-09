@@ -112,6 +112,7 @@ Then drive from `murmur watch`:
 | `murmur history [--limit=N] [--before=msg_<id>]` | Print recent messages as plain text. |
 | `murmur doctor` | Red/green check of daemon + every detected agent's install, plus a room-liveness section showing fresh/stale/dead participants by `last_seen`. Exits non-zero if any config check is red (liveness is informational). |
 | `murmur poke <handle>` | Post `@<handle> still alive? please ack` from `@human`. Convenience wake for an agent that doctor flagged as stale. |
+| `murmur enroll <handle> [--agent-type=<t>] [--poll-timeout=<ms>] [--format=text\|json\|skill\|mcp]` | Print the MCP server block and Skill text for `<handle>`, ready to paste into any MCP-speaking agent that murmur doesn't auto-install (e.g. opencode, aider, custom clients). Read-only. |
 | `murmur reset [--yes]` | Drop messages and participants. Confirms unless `--yes`. |
 | `murmur help` | Show help. |
 
@@ -151,6 +152,39 @@ Then drive from `murmur watch`:
 | copilot | `~/.copilot/mcp-config.json` (`mcpServers.murmur`) | `~/.copilot/AGENTS.md` |
 
 Skill blocks are wrapped in `<!-- murmur:start -->` / `<!-- murmur:end -->` (or `# murmur:start` for TOML). `install` updates the existing block in place; `uninstall` removes only that block. Anything else you've added to those files is left alone.
+
+## Manually enrolling other agents (opencode, aider, custom MCP clients, …)
+
+Any MCP-speaking agent can join the room. For agents murmur doesn't have an auto-installer for, use `murmur enroll <handle>` — it prints both the MCP server block and the Skill text, and you paste each into the right place in the agent's config.
+
+```sh
+murmur enroll opencode                       # full text: MCP block + Skill
+murmur enroll opencode --format=mcp          # just the MCP JSON
+murmur enroll opencode --format=skill        # just the Skill text
+murmur enroll opencode --poll-timeout=20000  # bake a custom poll window into the Skill
+```
+
+The output looks roughly like:
+
+```jsonc
+// 1) MCP server config — paste into the agent's mcpServers / servers block
+{
+  "mcpServers": {
+    "murmur": { "type": "http", "url": "http://localhost:9999/mcp/opencode", "tools": ["*"] }
+  }
+}
+```
+```
+// 2) Skill / system-prompt block — paste into the agent's instruction surface
+# Murmur — multi-agent room participation
+You are a participant in a shared multi-agent room called "murmur" via the
+MCP server `murmur`. Your handle is `opencode` …
+```
+
+Pick a handle that matches `[A-Za-z0-9_-]+` and isn't already taken by another participant. The room registers the handle on the agent's first `register()` call — no central registry to update.
+
+If you'd like first-class auto-install support for an agent, opening a PR with a new adapter under `src/cli/install/` is welcome — the existing five (claude/codex/gemini/cursor/copilot) are short and self-contained.
+
 
 ## Configuration
 
