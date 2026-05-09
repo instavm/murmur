@@ -2,7 +2,7 @@
 
 A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor`, `copilot` — sit in a shared chat over a single MCP HTTP daemon. You ask one of them to do something, it can `@-mention` another agent, that agent does real work, replies, and you watch the whole exchange happen live in `murmur watch`.
 
-> **Status:** v1, same-machine only. Single hardcoded room (`default`), no auth, narration-driven UX.
+> **Status:** v1, same-machine only. Single hardcoded room (`default`), no auth.
 
 ```
 > @claude please ask @codex to write /tmp/hello.txt with "hi from codex" and verify it
@@ -25,8 +25,8 @@ A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor
 - **Delegation contract.** When asked to *do* something (not just answered), the Skill makes the agent (a) post `@<sender> ack: starting <one-line>` within one turn, (b) emit a `wip:` heartbeat every ~2 min on long tasks, and (c) close with `@<sender> done: <summary>`. Delegators get a clear ack/progress/done sequence instead of silence.
 - **Artifacts, not chat-blobs.** Big task specs go to a GH issue (`gh issue create`) or a `MURMUR_TASKS/<slug>.md` file when `gh` isn't available; code submissions go to a branch + PR off `staging`/`develop`/default branch. The room only carries `@owner see #42` / `@owner done: <PR url>` style references — payloads live in their natural store.
 - **Silent-stall guard.** If a long-poll returns empty for ~5 min straight, the Skill triggers a no-op `register()` to validate the connection — catches sleep/Wi-Fi drops that didn't surface as MCP errors.
-- **`murmur watch`** — colored live chat view in your terminal. Per-handle color, bold `@mentions`, send-on-Enter as `@human`. Eats its own dog food (uses the same MCP API the agents do).
-- **Cross-agent delegation grants intent, not authority.** When `@claude` asks `@codex` to write a file, codex still goes through its normal approval gate. The room is a coordination channel, not a privilege escalator.
+- **`murmur watch`** — colored live chat view in your terminal. Per-handle color, bold `@mentions`, send-on-Enter as `@human`. Uses the same MCP API as the agents.
+- **Cross-agent requests don't bypass approvals.** When `@claude` asks `@codex` to write a file, codex still goes through its own approval gate. The room is a coordination channel, not a privilege escalator.
 - **Audit log.** Every tool call lands in `~/.murmur/audit.jsonl` (one JSON event per line) for after-the-fact debugging.
 
 ## What it doesn't do
@@ -86,22 +86,22 @@ cursor-agent
 copilot
 ```
 
-Then in each agent's prompt, type **`hi murmur`** (or `join murmur` / `start murmur`). The Skill installed by `murmur init` recognises the phrase and the agent will register in **cooperative mode** (drains the room at the start of each user turn, never long-blocks), print `✓ joined murmur as @<handle> (cooperative)`, and stay responsive. Confirm from `murmur watch` with `murmur who` (or just post `@all hi`).
+Then in each agent's prompt, type **`hi murmur`** (or `join murmur` / `start murmur`). The Skill recognises the phrase and the agent registers in **cooperative mode** — it drains the room at the start of each user turn instead of blocking on a long-poll, so you can keep prompting it normally. It prints `✓ joined murmur as @<handle> (cooperative)`. Confirm from `murmur watch` with `murmur who`.
 
-For a dedicated room watcher (one that long-polls and does nothing else), use **`monitor murmur`** instead — that's listener mode.
+For a dedicated room watcher (long-polls, does nothing else), use **`monitor murmur`** — that's listener mode.
 
-If `hi murmur` doesn't catch (the agent ignored the trigger or you want a fully explicit join), run:
+If `hi murmur` doesn't catch, run:
 
 ```
 murmur bootstrap                  # paste-ready lines for claude/codex/copilot/gemini/cursor
 murmur bootstrap myagent          # single-agent variant
 ```
 
-Copy the printed line into the agent's first prompt — it explicitly calls `register()` and forces the join.
+Paste the printed line into the agent's first prompt; it calls `register()` explicitly.
 
-To pull an agent out of the room, type `leave murmur` (or `bye murmur`, `murmur off`).
+To leave: `leave murmur` (or `bye murmur`, `murmur off`).
 
-> **Why a trigger phrase?** Most agent CLIs only consult their instruction file when prompted, so simply launching `claude` doesn't auto-execute the Skill. The trigger gives you control over when an agent joins (and lets you keep an agent open without it polling). Cooperative mode means joining doesn't hijack the agent's REPL — you can keep prompting it normally, and it drains the room at every turn.
+> **Why a trigger phrase?** Most agent CLIs only consult their instruction file when prompted, so launching `claude` doesn't auto-execute the Skill. The trigger gives you control over when an agent joins.
 
 Then drive from `murmur watch`:
 
@@ -305,7 +305,7 @@ SOAK_DURATION_S=30 npm test        # shorter long-poll soak
 The suite covers (53 tests across 5 files):
 - `tests/lib.mjs` — marker-block insert/update/remove round-trips, JSON config helpers.
 - `tests/install_roundtrip.mjs` — every per-agent install adapter writes + uninstalls cleanly without trampling user content.
-- `tests/mcp_protocol.mjs` — full daemon: register idempotency + cross-label collision, mention parsing, poll-timeout behaviour, **poll wakes when another client posts mid-wait** (the load-bearing UX guarantee).
+- `tests/mcp_protocol.mjs` — full daemon: register idempotency + cross-label collision, mention parsing, poll-timeout behaviour, poll wakes when another client posts mid-wait.
 - `tests/cli_smoke.mjs` — `bin/murmur` round-trip: help → status → start → idempotent start → say → history → doctor → stop.
 - `tests/poll_soak.mjs` — two long-pollers + a driver, default 60 s, asserts every mention delivered exactly once with no silent gaps.
 
@@ -319,7 +319,7 @@ src/cli/                    one file per subcommand
 src/cli/install/            one file per agent enrollment adapter
 src/daemon/murmurd.mjs      the HTTP MCP daemon
 src/daemon/tools.mjs        register / say / poll / who / history implementations
-src/skill/skill.md.tmpl     the canonical Skill text (the UX contract)
+src/skill/skill.md.tmpl     the Skill text installed into each agent
 src/lib/                    paths, MCP client, marker-block helpers, JSON helpers
 tests/                      automated suite (`npm test`)
 controller/, server/        pre-v1 regression harness (kept for Tier D re-runs)
