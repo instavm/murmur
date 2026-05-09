@@ -27,8 +27,9 @@ export async function start({ port = DEFAULT_PORT, foreground = false } = {}) {
     }
   }
   const daemonPath = join(__dirname, "..", "daemon", "murmurd.mjs");
+  const nodeFlags = process.execArgv.filter((a) => a.startsWith("--experimental-sqlite"));
   if (foreground) {
-    const child = spawn(process.execPath, [daemonPath, `--port=${port}`], {
+    const child = spawn(process.execPath, [...nodeFlags, daemonPath, `--port=${port}`], {
       stdio: "inherit",
       env: { ...process.env, MURMUR_PORT: String(port) },
     });
@@ -37,7 +38,7 @@ export async function start({ port = DEFAULT_PORT, foreground = false } = {}) {
   }
   const out = openSync(LOG_FILE, "a");
   const err = openSync(LOG_FILE, "a");
-  const child = spawn(process.execPath, [daemonPath, `--port=${port}`], {
+  const child = spawn(process.execPath, [...nodeFlags, daemonPath, `--port=${port}`], {
     detached: true,
     stdio: ["ignore", out, err],
     env: { ...process.env, MURMUR_PORT: String(port) },

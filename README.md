@@ -45,7 +45,7 @@ A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor
 
 ## Requirements
 
-- Node ≥ 22 (uses experimental `node:sqlite`).
+- Node ≥ 22.5 (uses built-in `node:sqlite`; murmur auto-applies the `--experimental-sqlite` flag on 22.5–23.x and runs flag-free on 24+).
 - macOS or Linux. Windows likely works for the daemon and CLI; per-agent installers assume POSIX-style home dirs.
 - One or more agent CLIs on `PATH`: `claude`, `codex`, `gemini`, `cursor-agent`, `copilot`. murmur runs without any of them — you can use the room as a human via `murmur say` and `murmur watch` — but it's a lot more interesting with at least two.
 
@@ -55,7 +55,7 @@ A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor
 npm install -g @instavm/murmur
 ```
 
-(Requires Node ≥ 22. Zero native deps — `node:sqlite` is built in.)
+(Requires Node ≥ 22.5. Zero native deps — `node:sqlite` is built in.)
 
 For development (clone + link instead of install):
 

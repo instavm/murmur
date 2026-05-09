@@ -22,6 +22,7 @@ const args = Object.fromEntries(
   }),
 );
 const PORT = parseInt(args.port || process.env.MURMUR_PORT || String(DEFAULT_PORT), 10);
+const BIND = process.env.MURMUR_BIND || "127.0.0.1";
 
 ensureMurmurHome();
 
@@ -103,15 +104,15 @@ const httpServer = createServer(async (req, res) => {
   }
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[murmurd] listening on http://localhost:${PORT}/mcp/<label>`);
+httpServer.listen(PORT, BIND, () => {
+  console.log(`[murmurd] listening on http://${BIND}:${PORT}/mcp/<label>`);
   appendFileSync(
     AUDIT_PATH,
     JSON.stringify({
       ts: new Date().toISOString(),
       agent_label: "_daemon",
       tool: "_startup",
-      params: { port: PORT, home: MURMUR_HOME, pid: process.pid },
+      params: { port: PORT, bind: BIND, home: MURMUR_HOME, pid: process.pid },
     }) + "\n",
   );
 });

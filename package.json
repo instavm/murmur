@@ -30,7 +30,7 @@
     "murmur": "bin/murmur"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.5"
   },
   "files": [
     "bin/",

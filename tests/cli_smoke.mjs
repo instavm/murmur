@@ -1,6 +1,6 @@
 // Spawn bin/murmur subcommands as subprocesses against an isolated
 // MURMUR_HOME + alt port. Round-trip start → status → say → history → stop.
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -61,6 +61,15 @@ test("status after start: shows port + 0 messages", () => {
   const r = murmur(["status"]);
   eq(r.status, 0);
   includes(r.stdout, String(PORT));
+});
+
+test("daemon binds to loopback only by default (audit log records 127.0.0.1)", () => {
+  const auditPath = join(TMP, "audit.jsonl");
+  ok(existsSync(auditPath), "audit log present");
+  const lines = readFileSync(auditPath, "utf8").trim().split("\n");
+  const startup = lines.map((l) => JSON.parse(l)).find((e) => e.tool === "_startup");
+  ok(startup, "startup audit entry present");
+  eq(startup.params.bind, "127.0.0.1");
 });
 
 test("say posts a message; history shows it", () => {

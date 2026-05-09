@@ -1,131 +1,43 @@
 #!/usr/bin/env node
-import { start } from "../src/cli/start.mjs";
-import { stop } from "../src/cli/stop.mjs";
-import { status } from "../src/cli/status.mjs";
-import { say } from "../src/cli/say.mjs";
-import { history } from "../src/cli/history.mjs";
-import { detect } from "../src/cli/detect.mjs";
-import { install, uninstall } from "../src/cli/install.mjs";
-import { init } from "../src/cli/init.mjs";
-import { watch } from "../src/cli/watch.mjs";
-import { doctor } from "../src/cli/doctor.mjs";
-import { poke } from "../src/cli/poke.mjs";
-import { reset } from "../src/cli/reset.mjs";
-import { enroll } from "../src/cli/enroll.mjs";
+// Preflight: validate Node version and ensure node:sqlite is loadable
+// before any module statically imports it. Re-exec with --experimental-sqlite
+// on Node 22.5–23.x if needed.
 
-const HELP = `murmur — local multi-agent room
-
-Usage:
-  murmur init                              start daemon + install into all detected agents
-  murmur start [--port=N] [--foreground]   start the daemon
-  murmur stop                              stop the daemon
-  murmur status                            show daemon + room state
-  murmur say "<message>" [--as=<handle>]   post a message (default handle: human)
-  murmur history [--limit=N] [--before=msg_N]   print recent messages
-  murmur detect                            list installed agent CLIs on PATH
-  murmur install [<agent>...] [--poll-timeout=<ms>]   install murmur into agents (no args = all detected)
-  murmur uninstall <agent>...              remove murmur config from named agents
-  murmur watch [--replay=N]                live colored chat view + input
-  murmur doctor                            sanity-check daemon + installed agents
-  murmur poke <handle>                     post a wake mention to a stalled agent
-  murmur enroll <handle> [--agent-type=<t>] [--poll-timeout=<ms>] [--format=text|json|skill|mcp]
-                                           print MCP config + Skill for any agent
-                                           (use this for unsupported agents — opencode, aider, etc.)
-  murmur reset [--yes]                     drop all messages and participants
-  murmur help                              show this help
-`;
-
-const [, , cmd, ...rest] = process.argv;
-const flags = Object.fromEntries(
-  rest.map((a) => {
-    const m = a.match(/^--([^=]+)=(.*)$/);
-    if (m) return [m[1], m[2]];
-    if (a.startsWith("--")) return [a.slice(2), true];
-    return [a, true];
-  }),
-);
-
-try {
-  switch (cmd) {
-    case "init":
-      await init();
-      break;
-    case "start":
-      await start({
-        port: flags.port ? parseInt(flags.port, 10) : undefined,
-        foreground: !!flags.foreground,
-      });
-      break;
-    case "stop":
-      await stop();
-      break;
-    case "status":
-      await status();
-      break;
-    case "say": {
-      const positional = rest.find((a) => !a.startsWith("--"));
-      await say({ message: positional, handle: flags.as || "human" });
-      break;
-    }
-    case "detect":
-      await detect();
-      break;
-    case "install": {
-      const targets = rest.filter((a) => !a.startsWith("--"));
-      const pollTimeoutMs = flags["poll-timeout"] ? parseInt(flags["poll-timeout"], 10) : undefined;
-      await install({ targets, all: !!flags.all, pollTimeoutMs });
-      break;
-    }
-    case "uninstall": {
-      const targets = rest.filter((a) => !a.startsWith("--"));
-      await uninstall({ targets });
-      break;
-    }
-    case "history":
-      await history({
-        limit: flags.limit ? parseInt(flags.limit, 10) : undefined,
-        before: flags.before,
-      });
-      break;
-    case "watch":
-      await watch({
-        replay: flags.replay ? parseInt(flags.replay, 10) : undefined,
-        handle: flags.as || "human",
-      });
-      break;
-    case "doctor":
-      await doctor();
-      break;
-    case "poke": {
-      const target = rest.find((a) => !a.startsWith("--"));
-      await poke({ handle: target });
-      break;
-    }
-    case "enroll": {
-      const target = rest.find((a) => !a.startsWith("--"));
-      await enroll({
-        handle: target,
-        agentType: flags["agent-type"],
-        pollTimeoutMs: flags["poll-timeout"] ? parseInt(flags["poll-timeout"], 10) : undefined,
-        format: flags.format || "text",
-      });
-      break;
-    }
-    case "reset":
-      await reset({ yes: !!flags.yes });
-      break;
-    case "help":
-    case "--help":
-    case "-h":
-    case undefined:
-      console.log(HELP);
-      break;
-    default:
-      console.error(`unknown command: ${cmd}\n`);
-      console.log(HELP);
-      process.exit(2);
-  }
-} catch (e) {
-  console.error(`murmur ${cmd}: ${e.message}`);
+const [maj, min] = process.versions.node.split(".").map(Number);
+if (maj < 22 || (maj === 22 && min < 5)) {
+  console.error(
+    `murmur requires Node.js >=22.5 (you have ${process.versions.node}).\n` +
+    `Install a newer Node via your version manager, e.g.:\n` +
+    `  nvm install --lts && nvm use --lts\n` +
+    `  # or: fnm install --lts && fnm use lts-latest\n` +
+    `  # or: brew install node@22`,
+  );
   process.exit(1);
 }
+
+let sqliteOk = false;
+try {
+  await import("node:sqlite");
+  sqliteOk = true;
+} catch {}
+
+if (!sqliteOk) {
+  const hasFlag = process.execArgv.some((a) => a.startsWith("--experimental-sqlite"));
+  if (hasFlag) {
+    console.error(
+      `node:sqlite unavailable even with --experimental-sqlite on Node ${process.versions.node}.\n` +
+      `Please upgrade Node.js to >=22.5.`,
+    );
+    process.exit(1);
+  }
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync(
+    process.execPath,
+    ["--experimental-sqlite", ...process.argv.slice(1)],
+    { stdio: "inherit" },
+  );
+  process.exit(r.status ?? 1);
+}
+
+const { run } = await import("../src/cli/main.mjs");
+await run(process.argv.slice(2));
