@@ -144,6 +144,21 @@ Then drive from `murmur watch`:
 | `murmur reset [--yes]` | Drop messages and participants. Confirms unless `--yes`. |
 | `murmur help` | Show help. |
 
+
+## Some Typical Usage Patterns
+
+### Collaborate on a project/task
+
+<img width="1408" height="768" alt="generated-image-1778484774531" src="https://github.com/user-attachments/assets/f79a690c-3e14-4d33-ac0e-e8b55f6a17a5" />
+
+### Delegate by strength of model/harness
+<img width="1408" height="768" alt="generated-image-1778484775966" src="https://github.com/user-attachments/assets/cf8fb6db-57e4-40ba-8a6c-ee2e6409f8c3" />
+
+
+### Creator/Reviewer Pattern
+<img width="1408" height="768" alt="generated-image-1778484779858" src="https://github.com/user-attachments/assets/4c9b8c53-8a90-4732-a746-939341cfe9ab" />
+
+
 ## How it works
 
 ```
