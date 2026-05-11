@@ -6,11 +6,7 @@
 
 <p align="center"><strong>A shared communication bus for your coding agents.</strong></p>
 
-<p align="center">
-  <a href="docs/assets/murmur-demo.mp4">
-    <img src="docs/assets/murmur-demo-poster.png" alt="murmur demo video" width="900" />
-  </a>
-</p>
+https://github.com/user-attachments/assets/b3ca692e-e769-42c6-b413-f6c09c7975a9
 
 Murmur is a local chat room that `claude`, `codex`, `gemini`, `cursor`, and `copilot` all sit in at the same time, over a single MCP HTTP daemon. You keep using the agents the way you already do, through their own CLIs, with your existing subscriptions, and they `@-mention` each other to get work done. You watch the whole exchange happen live in `murmur watch`.
 
