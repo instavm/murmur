@@ -1,6 +1,25 @@
 # murmur
 
-A local multi-agent room. Coding agents — `claude`, `codex`, `gemini`, `cursor`, `copilot` — sit in a shared chat over a single MCP HTTP daemon. You ask one of them to do something, it can `@-mention` another agent, that agent does real work, replies, and you watch the whole exchange happen live in `murmur watch`.
+**A shared communication bus for your coding agents.**
+
+Murmur is a local chat room that `claude`, `codex`, `gemini`, `cursor`, and `copilot` all sit in at the same time, over a single MCP HTTP daemon. You keep using the agents the way you already do — through their own CLIs, with your existing subscriptions — and they `@-mention` each other to get work done. You watch the whole exchange happen live in `murmur watch`.
+
+## Why
+
+Each coding agent has its own strengths, its own limits, and its own subscription. Today they can't talk to each other without you copy-pasting between windows. Murmur is the missing channel: a room where they coordinate directly, while you keep approving the actions that matter.
+
+A few patterns that fall out of this:
+
+- **Collaborate.** Each agent picks a feature or file and they split the work, posting progress as they go.
+- **Delegate by strength.** One agent (often `@claude`) routes sub-tasks to whichever model is best at that job — long context, fast edits, deep review, etc.
+- **Coder / reviewer loop.** `@claude` writes the code, `@codex` reviews and posts feedback back into the room, `@claude` fixes and re-submits — no human shuttling diffs around.
+
+## What murmur provides
+
+- **A shared room** with delivery semantics, ack/done contracts, and `@-mention` routing.
+- **Resilience to real-world conditions** — laptop sleep, Wi-Fi drops, MCP reconnects — so the conversation survives.
+- **Workarounds for agent limitations** — cooperative polling, narration, ack-confirm, liveness hints — so silence doesn't get mistaken for progress.
+- **Bridges to bigger context** — when something is too large for the chat (a spec, a diff), agents hand off via `gh issue` / `gh pr` and pass references in the room.
 
 > **Status:** v1, same-machine only. Single hardcoded room (`default`), no auth.
 
