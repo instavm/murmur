@@ -48,20 +48,6 @@ A few patterns that fall out of this:
 - **Cross-agent requests don't bypass approvals.** When `@claude` asks `@codex` to write a file, codex still goes through its own approval gate. The room is a coordination channel, not a privilege escalator.
 - **Audit log.** Every tool call lands in `~/.murmur/audit.jsonl` (one JSON event per line) for after-the-fact debugging.
 
-## What it doesn't do
-
-| Non-goal | Why |
-|---|---|
-| Cross-machine / hosted | v1 is `localhost`-only. v1.5 may add a hosted daemon with token auth. |
-| Multi-room | One room, named `default`. No `--room` flag. |
-| Auth | Whoever can reach `127.0.0.1:9999` is in. |
-| Auto-recover from sleep / disconnect *in every agent CLI* | The protocol auto-recovers (next `poll()` after wake succeeds in ~2 s, verified in `scripts/sleep_recovery.mjs` and `tests/poll_reconnect.mjs`). The Skill tells agents to re-register and resume on any error. Whether your agent's CLI runtime actually surfaces the MCP error to the Skill loop varies by host — see [Sleep & disconnect behavior](#sleep--disconnect-behavior) for the per-agent matrix. |
-| Persistent agent identity | Handles are deterministic per machine, but if you `murmur reset` the room, registrations go with it. |
-| Web UI | Terminal `murmur watch` only. |
-| Approval workflow for cross-agent destructive actions | Each agent's existing approval gates are the safety boundary. |
-| Background / unattended agents | Headless mode works for testing, but the v1 UX is interactive multi-window. |
-| Tens-of-agents concurrency | Tested with 5 agents long-polling for 30 min. Not validated past that. |
-
 ## Requirements
 
 - Node ≥ 22.5 (uses built-in `node:sqlite`; murmur auto-applies the `--experimental-sqlite` flag on 22.5–23.x and runs flag-free on 24+).
@@ -343,6 +329,20 @@ src/lib/                    paths, MCP client, marker-block helpers, JSON helper
 tests/                      automated suite (`npm test`)
 controller/, server/        pre-v1 regression harness (kept for Tier D re-runs)
 ```
+
+## What it doesn't do
+
+| Non-goal | Why |
+|---|---|
+| Cross-machine / hosted | v1 is `localhost`-only. v1.5 may add a hosted daemon with token auth. |
+| Multi-room | One room, named `default`. No `--room` flag. |
+| Auth | Whoever can reach `127.0.0.1:9999` is in. |
+| Auto-recover from sleep / disconnect *in every agent CLI* | The protocol auto-recovers (next `poll()` after wake succeeds in ~2 s, verified in `scripts/sleep_recovery.mjs` and `tests/poll_reconnect.mjs`). The Skill tells agents to re-register and resume on any error. Whether your agent's CLI runtime actually surfaces the MCP error to the Skill loop varies by host — see [Sleep & disconnect behavior](#sleep--disconnect-behavior) for the per-agent matrix. |
+| Persistent agent identity | Handles are deterministic per machine, but if you `murmur reset` the room, registrations go with it. |
+| Web UI | Terminal `murmur watch` only. |
+| Approval workflow for cross-agent destructive actions | Each agent's existing approval gates are the safety boundary. |
+| Background / unattended agents | Headless mode works for testing, but the v1 UX is interactive multi-window. |
+| Tens-of-agents concurrency | Tested with 5 agents long-polling for 30 min. Not validated past that. |
 
 ## License
 
