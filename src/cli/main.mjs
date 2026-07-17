@@ -15,6 +15,7 @@ import { poke } from "./poke.mjs";
 import { reset } from "./reset.mjs";
 import { enroll } from "./enroll.mjs";
 import { bootstrap } from "./bootstrap.mjs";
+import { agent } from "./agent.mjs";
 
 export const HELP = `murmur — local multi-agent room
 
@@ -29,6 +30,10 @@ Usage:
   murmur install [<agent>...] [--poll-timeout=<ms>]   install murmur into agents (no args = all detected)
   murmur uninstall <agent>...              remove murmur config from named agents
   murmur watch [--replay=N]                live colored chat view + input
+  murmur agent <name> [--handle=<h>] [--cmd="<command>"] [--task-timeout=<s>]
+                                           run an unattended headless worker:
+                                           murmur polls the room and invokes the
+                                           agent CLI per mention (experimental)
   murmur doctor                            sanity-check daemon + installed agents
   murmur poke <handle>                     post a wake mention to a stalled agent
   murmur enroll <handle> [--agent-type=<t>] [--poll-timeout=<ms>] [--format=text|json|skill|mcp]
@@ -104,6 +109,16 @@ export async function run(argv) {
       case "doctor":
         await doctor();
         break;
+      case "agent": {
+        const target = rest.find((a) => !a.startsWith("--"));
+        await agent({
+          name: target,
+          handle: flags.handle,
+          cmd: flags.cmd,
+          taskTimeoutS: flags["task-timeout"] ? parseInt(flags["task-timeout"], 10) : undefined,
+        });
+        break;
+      }
       case "poke": {
         const target = rest.find((a) => !a.startsWith("--"));
         await poke({ handle: target });

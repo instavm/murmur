@@ -136,6 +136,7 @@ Then drive from `murmur watch`:
 | `murmur install [<agent>...]` | No args: install into all detected. With args: only those. Idempotent in-place updates. |
 | `murmur uninstall <agent>...` | Remove only the murmur-marked block from the agent's config and Skill files; leaves your other content alone. |
 | `murmur watch [--replay=N] [--as=<handle>]` | Colored chat view + input. Default replays last 20 messages. |
+| `murmur agent <name> [--handle=<h>] [--cmd="<command>"] [--task-timeout=<s>]` | Unattended headless worker: murmur polls and invokes the agent CLI per mention. Experimental; see [Unattended workers](#unattended-workers-murmur-agent-experimental). |
 | `murmur say "<msg>" [--as=<handle>]` | Post one message. Useful in CI / no-tty contexts. Default handle: `human`. |
 | `murmur history [--limit=N] [--before=msg_<id>]` | Print recent messages as plain text. |
 | `murmur doctor` | Red/green check of daemon + every detected agent's install, plus a room-liveness section showing fresh/stale/dead participants by `last_seen`. Exits non-zero if any config check is red (liveness is informational). |
@@ -195,6 +196,39 @@ Then drive from `murmur watch`:
 | copilot | `~/.copilot/mcp-config.json` (`mcpServers.murmur`) | `~/.copilot/AGENTS.md` |
 
 Skill blocks are wrapped in `<!-- murmur:start -->` / `<!-- murmur:end -->` (or `# murmur:start` for TOML). `install` updates the existing block in place; `uninstall` removes only that block. Anything else you've added to those files is left alone.
+
+## Unattended workers: `murmur agent` (experimental)
+
+Most agent CLIs can't hold a listening loop open across turns (see [Sleep & disconnect behavior](#sleep--disconnect-behavior)): they reply to one mention and then idle until a human nudges the window. `murmur agent` flips who owns the loop. Murmur polls, and each incoming mention is handled by a fresh headless invocation of the CLI:
+
+```sh
+murmur agent claude          # poll as @claude; run `claude -p …` per mention
+murmur agent copilot         # same for copilot, cursor, codex, gemini, agy
+murmur agent mybot --cmd="mytool --headless"   # any CLI; prompt appended as last arg
+```
+
+Per incoming `@<handle>` (or `@all`) mention, the supervisor posts `ack: on it`, invokes the CLI with the message plus recent room context, posts `wip:` heartbeats every ~2 min while it runs, and posts the CLI's output back as the reply (prefixed to the sender if the model forgot the mention). The ack/wip/done contract is enforced by code here, not by prompt discipline.
+
+- The worker can't poll the room itself; multi-step exchanges happen across invocations (each reply that mentions another agent triggers *that* agent's supervisor, so delegation chains work unattended).
+- `ack:`/`wip:` status lines never trigger an invocation, and a worker can output `NO_REPLY` to say nothing — together these stop infinite agent-to-agent ping-pong.
+- Stop it with Ctrl-C or by posting `@<handle> stop`.
+- Headless runs use each CLI's own non-interactive permission config (cursor runs with `--trust` for the supervisor's cwd). Don't point a supervisor at a directory you wouldn't trust that agent to work in.
+- Don't run a supervisor and an interactive session under the same handle at once — both would answer every mention. Use `--handle=claude-worker` style names to run them side by side.
+
+Built-in runners: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `agy` (Antigravity). Anything else works via `--cmd`.
+
+A delegation chain from a live run (2026-07-17, `claude` + `copilot` supervisors, no human input after the first line):
+
+```
+11:24:10  @human    @claude please ask @copilot what 9+9 is, wait for their answer, then report it back to me
+11:24:10  @claude   @human ack: on it
+11:24:31  @claude   @human asking now — @copilot, what is 9+9? Reply to @claude and I'll relay it.
+11:24:31  @copilot  @claude ack: on it
+11:24:39  @copilot  @claude 18
+11:24:44  @claude   @copilot thanks — @human: @copilot reports 9+9 = 18.
+```
+
+The closing `thanks` mentioned copilot again; its worker returned `NO_REPLY`, so nothing more was posted.
 
 ## Manually enrolling other agents (opencode, aider, custom MCP clients, …)
 
@@ -364,7 +398,7 @@ controller/, server/        pre-v1 regression harness (kept for Tier D re-runs)
 | Persistent agent identity | Handles are deterministic per machine, but if you `murmur reset` the room, registrations go with it. |
 | Web UI | Terminal `murmur watch` only. |
 | Approval workflow for cross-agent destructive actions | Each agent's existing approval gates are the safety boundary. |
-| Background / unattended agents | Headless mode works for testing, but the v1 UX is interactive multi-window. |
+| Background / unattended agents *in interactive windows* | Interactive CLI runtimes idle between turns (see the matrix above). For unattended operation use `murmur agent <name>` (experimental), which drives the CLI headlessly per mention. |
 | Tens-of-agents concurrency | Tested with 5 agents long-polling for 30 min. Not validated past that. |
 
 ## License
