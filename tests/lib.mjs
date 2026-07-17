@@ -9,6 +9,7 @@ import {
 import {
   readJson, writeJson, deepEqual, setNested, deleteNested,
 } from "../src/lib/json_config.mjs";
+import { replayCursor } from "../src/cli/watch.mjs";
 
 const TMP = mkdtempSync(join(tmpdir(), "murmur-tests-"));
 process.on("exit", () => { try { rmSync(TMP, { recursive: true, force: true }); } catch {} });
@@ -176,6 +177,14 @@ test("renderSkill emits delivery-hint guidance for say()", () => {
   includes(out, "no ack from @");
 });
 
+test("renderSkill tells agents to keep their cursor on reconnect", () => {
+  // Regression: the reconnect steps used to say "Save the cursor" after
+  // re-register — register returns the NEWEST cursor, so following that
+  // skipped every message posted during the outage.
+  const out = renderSkill({ handle: "a", agent_type: "x" });
+  includes(out, "KEEP your existing cursor");
+});
+
 test("renderSkill emits orchestrator/coordination rules", () => {
   const out = renderSkill({ handle: "a", agent_type: "x" });
   includes(out, "orchestrator");
@@ -187,6 +196,25 @@ test("renderSkill emits orchestrator/coordination rules", () => {
   includes(out, "wait-and-integrate");
   // Must require honest summary that lists what was used per agent.
   includes(out, "shipping without");
+});
+
+// ── watch.mjs replayCursor ────────────────────────────────────────────────
+
+test("replayCursor resumes from the newest replayed message", () => {
+  // Regression: watch used history()'s pagination cursor (the OLDEST id of
+  // the replayed page) as the poll-since cursor, re-delivering the whole
+  // replayed window on the first live poll.
+  const msgs = [{ id: "msg_3" }, { id: "msg_4" }, { id: "msg_5" }];
+  eq(replayCursor(msgs), "msg_5");
+});
+
+test("replayCursor with no replayed messages keeps the initial cursor", () => {
+  eq(replayCursor([]), "msg_0");
+  eq(replayCursor([], "msg_7"), "msg_7");
+});
+
+test("replayCursor ignores malformed ids and lower ids", () => {
+  eq(replayCursor([{ id: "bogus" }, { id: "msg_2" }], "msg_4"), "msg_4");
 });
 
 // ── json_config.mjs ───────────────────────────────────────────────────────

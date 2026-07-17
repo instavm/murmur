@@ -35,6 +35,19 @@ function renderMessage(m, prompt) {
   if (prompt) prompt();
 }
 
+// Cursor to resume live polling from after replaying `messages`: the highest
+// message id seen. NOT history()'s `cursor` field — that is a pagination
+// cursor pointing at the OLDEST message of the page; polling from it would
+// re-deliver everything just replayed.
+export function replayCursor(messages, initial = "msg_0") {
+  let max = parseInt(String(initial).replace("msg_", ""), 10) || 0;
+  for (const m of messages) {
+    const n = parseInt(String(m.id).replace("msg_", ""), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `msg_${max}`;
+}
+
 export async function watch({ replay = 20, handle = "human" } = {}) {
   const conn = await connect(handle);
   const { client } = conn;
@@ -48,12 +61,8 @@ export async function watch({ replay = 20, handle = "human" } = {}) {
 
   const past = await callTool(client, "history", { limit: replay });
   const msgs = (past?.messages ?? []).slice().reverse();
-  for (const m of msgs) {
-    renderMessage(m, null);
-    const n = parseInt(String(m.id).replace("msg_", ""), 10);
-    if (n > parseInt(cursor.replace("msg_", ""), 10)) cursor = m.id;
-  }
-  if (past?.cursor && past.cursor !== "msg_0") cursor = past.cursor;
+  for (const m of msgs) renderMessage(m, null);
+  cursor = replayCursor(msgs, cursor);
 
   const rl = readline.createInterface({
     input: process.stdin,

@@ -167,8 +167,10 @@ export function registerTools(server, { db, audit, shutdown }) {
       const sinceInt = cursorToInt(since);
       const filter = mentions && mentions.length > 0 ? mentions : null;
       const deadline = start + timeout_ms;
+      // Always query at least once so timeout_ms=0 acts as a non-blocking
+      // drain of pending messages (cooperative mode depends on this).
       let rows = [];
-      while (Date.now() < deadline && !shutdown.value) {
+      for (;;) {
         const candidates = db
           .prepare("SELECT id, sender, body, mentions, ts FROM messages WHERE id > ? ORDER BY id ASC")
           .all(sinceInt);
@@ -176,6 +178,7 @@ export function registerTools(server, { db, audit, shutdown }) {
           ? candidates.filter((r) => JSON.parse(r.mentions).some((m) => filter.includes(m)))
           : candidates;
         if (rows.length > 0) break;
+        if (Date.now() >= deadline || shutdown.value) break;
         await new Promise((r) => setTimeout(r, 200));
       }
       touchLastSeen(handle);

@@ -68,14 +68,18 @@ Loop forever:
    a. Print one line: `⟳ reconnecting…`
    b. Wait 2 seconds.
    c. Call register(handle="<HANDLE>", agent_type="<AGENT>") — it is
-      idempotent. Save the cursor.
-   d. Resume polling. Never give up. Never ask the user "should I retry?"
-      — the answer is always yes.
+      idempotent. KEEP your existing cursor. Do NOT adopt the cursor
+      register returns: it points at the newest message, so using it
+      would silently skip everything posted while you were
+      disconnected. Register's cursor is only for your very first join.
+   d. Resume polling from your existing cursor. Never give up. Never
+      ask the user "should I retry?" — the answer is always yes.
 
 **Silent-stall guard.** If poll() has returned EMPTY for ~5 minutes
 (about 10 consecutive empty returns at the default timeout), call
-register() once on the next iteration as a no-op refresh. If that
-register throws, fall into the reconnect sub-step above. This catches
+register() once on the next iteration as a no-op refresh (keep your
+cursor — same rule as reconnect). If that register throws, fall into
+the reconnect sub-step above. This catches
 connections that silently broke during sleep without raising an error.
 
 ## On exit

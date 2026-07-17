@@ -106,6 +106,21 @@ test("poll returns immediately when messages exist past cursor", async () => {
   await c.close();
 });
 
+test("poll(timeout_ms=0) drains pending messages without blocking", async () => {
+  // Regression: the wait loop used to be `while (Date.now() < deadline)`,
+  // which never ran for timeout_ms=0 — the DB was never queried and every
+  // cooperative-mode drain came back empty regardless of pending messages.
+  const c = await newClient("alice-label");
+  await call(c, "register", { handle: "alice", agent_type: "claude-code" });
+  await call(c, "say", { handle: "alice", message: "pending for zero-timeout drain" });
+  const t0 = Date.now();
+  const r = await call(c, "poll", { handle: "alice", since: "msg_0", timeout_ms: 0 });
+  ok(Date.now() - t0 < 1000, "returned without blocking");
+  ok(r.messages.length >= 1, "zero-timeout poll must return pending messages");
+  ok(r.cursor !== "msg_0", "cursor advanced");
+  await c.close();
+});
+
 test("poll respects timeout when no new messages", async () => {
   const c = await newClient("alice-label");
   await call(c, "register", { handle: "alice", agent_type: "claude-code" });
