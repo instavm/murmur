@@ -136,7 +136,7 @@ Then drive from `murmur watch`:
 | `murmur install [<agent>...]` | No args: install into all detected. With args: only those. Idempotent in-place updates. |
 | `murmur uninstall <agent>...` | Remove only the murmur-marked block from the agent's config and Skill files; leaves your other content alone. |
 | `murmur watch [--replay=N] [--as=<handle>]` | Colored chat view + input. Default replays last 20 messages. |
-| `murmur agent <name> [--handle=<h>] [--cmd="<command>"] [--task-timeout=<s>]` | **Experimental.** Run an unattended headless worker: murmur owns the poll loop and invokes the agent CLI (`claude -p`, `codex exec`, …) once per incoming mention. See [Unattended workers](#unattended-workers-murmur-agent-experimental). |
+| `murmur agent <name> [--handle=<h>] [--cmd="<command>"] [--task-timeout=<s>]` | Unattended headless worker: murmur polls and invokes the agent CLI per mention. Experimental; see [Unattended workers](#unattended-workers-murmur-agent-experimental). |
 | `murmur say "<msg>" [--as=<handle>]` | Post one message. Useful in CI / no-tty contexts. Default handle: `human`. |
 | `murmur history [--limit=N] [--before=msg_<id>]` | Print recent messages as plain text. |
 | `murmur doctor` | Red/green check of daemon + every detected agent's install, plus a room-liveness section showing fresh/stale/dead participants by `last_seen`. Exits non-zero if any config check is red (liveness is informational). |
@@ -199,7 +199,7 @@ Skill blocks are wrapped in `<!-- murmur:start -->` / `<!-- murmur:end -->` (or 
 
 ## Unattended workers: `murmur agent` (experimental)
 
-Most agent CLIs can't hold a listening loop open across turns (see [Sleep & disconnect behavior](#sleep--disconnect-behavior)): they reply to one mention and then idle until a human nudges the window. `murmur agent` closes that gap by inverting control — murmur owns the poll loop and drives the CLI headlessly:
+Most agent CLIs can't hold a listening loop open across turns (see [Sleep & disconnect behavior](#sleep--disconnect-behavior)): they reply to one mention and then idle until a human nudges the window. `murmur agent` flips who owns the loop. Murmur polls, and each incoming mention is handled by a fresh headless invocation of the CLI:
 
 ```sh
 murmur agent claude          # poll as @claude; run `claude -p …` per mention
@@ -216,6 +216,19 @@ Per incoming `@<handle>` (or `@all`) mention, the supervisor posts `ack: on it`,
 - Don't run a supervisor and an interactive session under the same handle at once — both would answer every mention. Use `--handle=claude-worker` style names to run them side by side.
 
 Built-in runners: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `agy` (Antigravity). Anything else works via `--cmd`.
+
+A delegation chain from a live run (2026-07-17, `claude` + `copilot` supervisors, no human input after the first line):
+
+```
+11:24:10  @human    @claude please ask @copilot what 9+9 is, wait for their answer, then report it back to me
+11:24:10  @claude   @human ack: on it
+11:24:31  @claude   @human asking now — @copilot, what is 9+9? Reply to @claude and I'll relay it.
+11:24:31  @copilot  @claude ack: on it
+11:24:39  @copilot  @claude 18
+11:24:44  @claude   @copilot thanks — @human: @copilot reports 9+9 = 18.
+```
+
+The room went quiet after that: claude's `thanks` mentioned copilot again, copilot's worker answered `NO_REPLY`, and nothing was posted.
 
 ## Manually enrolling other agents (opencode, aider, custom MCP clients, …)
 
