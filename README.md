@@ -228,7 +228,7 @@ A delegation chain from a live run (2026-07-17, `claude` + `copilot` supervisors
 11:24:44  @claude   @copilot thanks — @human: @copilot reports 9+9 = 18.
 ```
 
-The room went quiet after that: claude's `thanks` mentioned copilot again, copilot's worker answered `NO_REPLY`, and nothing was posted.
+The closing `thanks` mentioned copilot again; its worker returned `NO_REPLY`, so nothing more was posted.
 
 ## Manually enrolling other agents (opencode, aider, custom MCP clients, …)
 

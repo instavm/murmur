@@ -26,10 +26,13 @@ const MAX_REPLY_CHARS = 12000;
 // the final message to a file, which is cleaner than scraping stdout.
 const RUNNERS = {
   claude:  (prompt) => ({ argv: ["claude", "-p", prompt] }),
-  codex:   (prompt, outFile) => ({
-    argv: ["codex", "exec", "--skip-git-repo-check", "--output-last-message", outFile, prompt],
-    outFile,
-  }),
+  codex:   (prompt, getOutFile) => {
+    const outFile = getOutFile();
+    return {
+      argv: ["codex", "exec", "--skip-git-repo-check", "--output-last-message", outFile, prompt],
+      outFile,
+    };
+  },
   gemini:  (prompt) => ({ argv: ["gemini", "-p", prompt] }),
   // --trust: headless mode refuses untrusted workspaces; the user explicitly
   // picked this cwd by launching the supervisor here.
@@ -47,6 +50,13 @@ const msgNum = (id) => parseInt(String(id).replace("msg_", ""), 10) || 0;
 // Protocol status lines (ack/wip) don't need a model turn — reacting to them
 // is what creates infinite agent-to-agent ping-pong.
 const isStatusOnly = (body) => /^@[\w-]+\s+(ack|wip):/i.test(body.trim());
+
+// Strict stop match: only "@<handle> stop" as the whole message (plus optional
+// punctuation), so "@worker stop doing X and do Y" is a task, not a shutdown.
+const isStopMessage = (body, handle) => {
+  const t = body.trim();
+  return t.includes("STOP TEST") || new RegExp(`^@${handle}\\s+stop[.!]*$`, "i").test(t);
+};
 
 function buildPrompt({ handle, agentType, context, message }) {
   const lines = [
@@ -69,9 +79,14 @@ function buildPrompt({ handle, agentType, context, message }) {
 }
 
 function runWorker({ argvBuild, prompt, taskTimeoutMs, onHeartbeat }) {
-  const scratch = mkdtempSync(join(tmpdir(), "murmur-agent-"));
-  const outFile = join(scratch, "last_message.txt");
-  const { argv, outFile: usesOutFile } = argvBuild(prompt, outFile);
+  // Lazy: only the runners that read the reply from a file (codex) pay for a
+  // scratch dir; the stdout-based runners never touch the disk.
+  let scratch = null;
+  const getOutFile = () => {
+    scratch = mkdtempSync(join(tmpdir(), "murmur-agent-"));
+    return join(scratch, "last_message.txt");
+  };
+  const { argv, outFile } = argvBuild(prompt, getOutFile);
   return new Promise((resolve) => {
     const child = spawn(argv[0], argv.slice(1), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -86,12 +101,12 @@ function runWorker({ argvBuild, prompt, taskTimeoutMs, onHeartbeat }) {
     child.on("error", (e) => {
       clearInterval(beat); clearTimeout(killer);
       resolve({ ok: false, reply: "", error: e.message });
-      try { rmSync(scratch, { recursive: true, force: true }); } catch {}
+      if (scratch) { try { rmSync(scratch, { recursive: true, force: true }); } catch {} }
     });
     child.on("exit", (code) => {
       clearInterval(beat); clearTimeout(killer);
       let reply = "";
-      if (usesOutFile && existsSync(outFile)) {
+      if (outFile && existsSync(outFile)) {
         try { reply = readFileSync(outFile, "utf8"); } catch {}
       }
       if (!reply.trim()) reply = stdout;
@@ -106,7 +121,7 @@ function runWorker({ argvBuild, prompt, taskTimeoutMs, onHeartbeat }) {
             ? (stripAnsi(stderr).trim().split("\n").pop() || `exit code ${code}`)
             : null,
       });
-      try { rmSync(scratch, { recursive: true, force: true }); } catch {}
+      if (scratch) { try { rmSync(scratch, { recursive: true, force: true }); } catch {} }
     });
   });
 }
@@ -119,8 +134,13 @@ export async function agent({ name, handle, cmd, taskTimeoutS } = {}) {
   const known = KNOWN_AGENTS.find((a) => a.name === name);
   let argvBuild;
   if (cmd) {
-    // Custom command: whitespace-split, prompt appended as the final argument.
-    const parts = String(cmd).split(/\s+/).filter(Boolean);
+    // Custom command: split on whitespace but keep quoted arguments intact;
+    // the prompt is appended as the final argument.
+    const parts = (String(cmd).match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []).map((a) =>
+      (a.startsWith('"') && a.endsWith('"')) || (a.startsWith("'") && a.endsWith("'"))
+        ? a.slice(1, -1)
+        : a,
+    );
     argvBuild = (prompt) => ({ argv: [...parts, prompt] });
   } else if (RUNNERS[name]) {
     argvBuild = RUNNERS[name];
@@ -208,7 +228,7 @@ export async function agent({ name, handle, cmd, taskTimeoutS } = {}) {
     for (const m of res?.messages ?? []) {
       if (m.id && msgNum(m.id) > msgNum(cursor)) cursor = m.id;
       if (m.sender === myHandle) continue;
-      if (m.body.includes("STOP TEST") || m.body.includes(`@${myHandle} stop`)) {
+      if (isStopMessage(m.body, myHandle)) {
         await leave(`stopped by @${m.sender}`);
         return;
       }
