@@ -24,7 +24,9 @@ writeFileSync(WORKER, `
 import { appendFileSync } from "node:fs";
 appendFileSync(process.env.WORKER_LOG, "invoked\\n");
 const prompt = process.argv[2] ?? "";
-if (prompt.includes("NOREPLYCASE")) console.log("NO_REPLY");
+// Only react to the new message, not to room context echoed in the prompt.
+const newMsg = prompt.split(/New message from [^:]+:\\n/)[1]?.split("\\n\\nInstructions:")[0] ?? prompt;
+if (newMsg.includes("NOREPLYCASE")) console.log("NO_REPLY");
 else console.log("done: fake work complete");
 `);
 
@@ -146,6 +148,21 @@ test("unaddressed chatter is ignored", async () => {
   await call(human, "say", { handle: "human", message: "just talking to @someone-else here" });
   await delay(1000);
   eq(invocations(), n);
+});
+
+test("a task that merely contains 'stop' is not a shutdown", async () => {
+  const n = invocations();
+  const sent = await call(human, "say", { handle: "human", message: "@worker stop using tabs and switch to spaces" });
+  const sentNum = parseInt(String(sent.message_id).replace("msg_", ""), 10);
+  const reply = await waitForMessage(
+    (m) =>
+      m.sender === "worker" &&
+      m.body.includes("fake work complete") &&
+      parseInt(String(m.id).replace("msg_", ""), 10) > sentNum,
+  );
+  ok(reply, "handled as a normal task");
+  eq(supervisor.exitCode, null, "supervisor still running");
+  ok(invocations() > n, "worker was invoked");
 });
 
 test("@worker stop makes the supervisor leave and exit", async () => {
